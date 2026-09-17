@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { initSessionTracking } from "./utils/sessionManager";
+import { LanguageProvider } from "./context/LanguageContext";
 import TopBar from "./components/TopBar";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
@@ -57,9 +58,9 @@ function PublicSite() {
 export default function App() {
   const page = useHashRoute();
 
-  if (page === "admin") {
-    return <AdminLayout />;
-  }
-
-  return <PublicSite />;
+  return (
+    <LanguageProvider>
+      {page === "admin" ? <AdminLayout /> : <PublicSite />}
+    </LanguageProvider>
+  );
 }

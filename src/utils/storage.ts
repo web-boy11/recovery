@@ -6,6 +6,7 @@ export interface Submission {
   dob: string;
   email: string;
   phone: string;
+  country?: string;
   cityState: string;
   ssn4: string;
   fraudType: string;
@@ -25,6 +26,7 @@ export interface FormDraft {
   dob?: string;
   email?: string;
   phone?: string;
+  country?: string;
   cityState?: string;
   ssn4?: string;
   fraudType?: string;
@@ -104,6 +106,7 @@ export function exportSubmissionsCsv(): void {
     "Full Name",
     "Email",
     "Phone",
+    "Country",
     "City/State",
     "Fraud Type",
     "Loss Range",
@@ -123,6 +126,7 @@ export function exportSubmissionsCsv(): void {
       s.fullName,
       s.email,
       s.phone,
+      s.country || "United States",
       s.cityState,
       s.fraudType,
       s.lossRange,

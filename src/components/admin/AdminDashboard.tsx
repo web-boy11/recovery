@@ -57,6 +57,7 @@ function DetailModal({
     { label: "Date of Birth", value: s.dob },
     { label: "Email", value: s.email },
     { label: "Phone", value: s.phone },
+    { label: "Country", value: s.country || "United States" },
     { label: "City / State", value: s.cityState },
     { label: "SSN (last 4)", value: s.ssn4 ? `••••${s.ssn4}` : "N/A" },
     { label: "Fraud Type", value: s.fraudType },

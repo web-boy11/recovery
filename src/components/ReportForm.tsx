@@ -6,23 +6,51 @@ import {
   clearFormDraft,
   type FormDraft,
 } from "../utils/storage";
+import { useLanguage } from "../context/LanguageContext";
 
 const paymentOptions = [
-  "Bank Wire",
+  "Bank Wire (SWIFT / Fedwire)",
+  "SEPA Transfer / Instant (EUR)",
+  "UK Faster Payments / BACS (GBP)",
+  "Revolut / Wise Transfer",
   "ACH Transfer",
   "Bitcoin (BTC)",
   "Ethereum (ERC-20)",
-  "USDT/Stablecoin",
-  "Credit/Debit Card",
+  "USDT / USDC / Stablecoin",
+  "Credit / Debit Card",
   "Gift Card",
-  "Cash App / Zelle / Venmo",
+  "Online Platform (PayPal / Zelle / Cash App)",
+];
+
+const countryList = [
+  "United States",
+  "United Kingdom",
+  "Germany (Deutschland)",
+  "France",
+  "Spain (España)",
+  "Italy (Italia)",
+  "Netherlands (Nederland)",
+  "Switzerland (Schweiz / Suisse)",
+  "Austria (Österreich)",
+  "Belgium (Belgique / België)",
+  "Ireland",
+  "Portugal",
+  "Sweden (Sverige)",
+  "Norway (Norge)",
+  "Denmark (Danmark)",
+  "Finland (Suomi)",
+  "Poland (Polska)",
+  "Canada",
+  "Australia",
+  "Other European Country",
+  "Other International",
 ];
 
 const contactOptions = [
-  "Phone Call",
   "Encrypted Email",
-  "In-Person Field Office",
+  "Phone Call",
   "Signal / Encrypted Messaging",
+  "In-Person Field Office / Europol Liaison",
 ];
 
 const emptyForm: FormDraft = {
@@ -30,6 +58,7 @@ const emptyForm: FormDraft = {
   dob: "",
   email: "",
   phone: "",
+  country: "United States",
   cityState: "",
   ssn4: "",
   fraudType: "",
@@ -43,6 +72,7 @@ const emptyForm: FormDraft = {
 };
 
 export default function ReportForm() {
+  const { t } = useLanguage();
   const [form, setForm] = useState<FormDraft>(emptyForm);
   const [submitted, setSubmitted] = useState(false);
   const [caseRef, setCaseRef] = useState("");
@@ -54,7 +84,6 @@ export default function ReportForm() {
     if (draft) {
       setForm((prev) => ({ ...prev, ...draft }));
       setRestored(true);
-      // Auto-hide the restored banner after 5 seconds
       setTimeout(() => setRestored(false), 5000);
     }
   }, []);
@@ -98,6 +127,7 @@ export default function ReportForm() {
       dob: form.dob ?? "",
       email: form.email ?? "",
       phone: form.phone ?? "",
+      country: form.country ?? "United States",
       cityState: form.cityState ?? "",
       ssn4: form.ssn4 ?? "",
       fraudType: form.fraudType ?? "",
@@ -120,30 +150,26 @@ export default function ReportForm() {
         <div className="grid gap-10 lg:grid-cols-3">
           <div className="lg:col-span-1">
             <div className="mb-3 text-xs font-bold uppercase tracking-widest text-[#b22234]">
-              File a Confidential Report
+              {t.report.badge}
             </div>
             <h2 className="mb-4 font-serif text-3xl font-bold leading-tight text-[#0b1f3a]">
-              Initiate Your Case Intake
+              {t.report.title}
             </h2>
             <p className="mb-6 text-[15px] leading-relaxed text-slate-700">
-              Submit this confidential intake form and a sworn agent will
-              contact you within 24 business hours. All submissions are
-              encrypted (TLS 1.3) and protected under the Privacy Act of 1974.
+              {t.report.desc}
             </p>
 
             <div className="space-y-4 text-sm">
               <div className="rounded-sm border border-slate-200 bg-slate-50 p-4">
-                <div className="font-semibold text-[#0b1f3a]">24/7 Hotline</div>
-                <div className="text-lg font-bold text-[#b22234]">1-800-324-4372</div>
+                <div className="font-semibold text-[#0b1f3a]">{t.report.hotlineLabel}</div>
+                <div className="text-lg font-bold text-[#b22234]">1-800-324-4372 / +1 (202) 324-3000</div>
               </div>
               <div className="rounded-sm border border-slate-200 bg-slate-50 p-4">
-                <div className="font-semibold text-[#0b1f3a]">Encrypted Email</div>
-                <div className="text-slate-700">mccollins.unit@fbi.dhs.gov</div>
+                <div className="font-semibold text-[#0b1f3a]">{t.report.emailLabel}</div>
+                <div className="text-slate-700 font-mono text-xs">mccollins.unit@fbi.dhs.gov</div>
               </div>
               <div className="rounded-sm border-l-4 border-[#c9a227] bg-amber-50 p-4 text-xs text-amber-900">
-                <strong>Do NOT</strong> destroy any evidence (phones, laptops,
-                emails) even if you believe the scam is over. Forensic
-                preservation is critical.
+                {t.report.evidenceWarning}
               </div>
             </div>
           </div>
@@ -170,13 +196,10 @@ export default function ReportForm() {
                   />
                 </svg>
                 <h3 className="mb-2 font-serif text-2xl font-bold text-emerald-900">
-                  Intake Received
+                  {t.report.successTitle}
                 </h3>
                 <p className="text-sm text-emerald-800">
-                  Your case reference number is{" "}
-                  <strong>{caseRef}</strong>. A sworn agent from the Mc Collins
-                  Unit will contact you within 24 business hours via your
-                  preferred method.
+                  {t.report.successDesc.replace("{caseRef}", caseRef)}
                 </p>
               </div>
             ) : (
@@ -184,99 +207,115 @@ export default function ReportForm() {
                 onSubmit={handleSubmit}
                 className="rounded-sm border border-slate-200 bg-slate-50 p-6 lg:p-8"
               >
-                <h3 className="mb-6 font-serif text-xl font-bold text-[#0b1f3a]">
-                  Confidential Victim Intake Form (CVIF)
-                </h3>
+                <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+                  <h3 className="font-serif text-xl font-bold text-[#0b1f3a]">
+                    {t.report.formTitle}
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#0b1f3a] bg-[#c9a227]/20 border border-[#c9a227] px-2 py-0.5 rounded">
+                    US &bull; EU &bull; UK Jurisdiction
+                  </span>
+                </div>
 
                 {/* Restored draft notification */}
                 {restored && (
                   <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-800">
-                    <strong>Welcome back!</strong> Your previous form progress
-                    has been restored. Continue where you left off.
+                    <strong>Draft Restored:</strong> Your previous form progress has been loaded.
                   </div>
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field
-                    label="Full Legal Name"
+                    label={t.report.fields.fullName}
                     value={form.fullName ?? ""}
                     onChange={(v) => updateField("fullName", v)}
                     required
                   />
                   <Field
-                    label="Date of Birth"
+                    label={t.report.fields.dob}
                     type="date"
                     value={form.dob ?? ""}
                     onChange={(v) => updateField("dob", v)}
                     required
                   />
                   <Field
-                    label="Email Address"
+                    label={t.report.fields.email}
                     type="email"
                     value={form.email ?? ""}
                     onChange={(v) => updateField("email", v)}
                     required
                   />
                   <Field
-                    label="Phone (with area code)"
+                    label={t.report.fields.phone}
                     type="tel"
                     value={form.phone ?? ""}
                     onChange={(v) => updateField("phone", v)}
                     required
                   />
+                  <LabeledSelect
+                    label={t.report.fields.country}
+                    value={form.country ?? "United States"}
+                    onChange={(v) => updateField("country", v)}
+                    required
+                  >
+                    {countryList.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </LabeledSelect>
                   <Field
-                    label="City / State of Residence"
+                    label={t.report.fields.cityRegion}
                     value={form.cityState ?? ""}
                     onChange={(v) => updateField("cityState", v)}
                     required
                   />
                   <Field
-                    label="Last 4 of SSN (for identity verification)"
+                    label={t.report.fields.nationalId}
                     value={form.ssn4 ?? ""}
                     onChange={(v) => updateField("ssn4", v)}
                   />
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <LabeledSelect
-                    label="Fraud Type"
+                    label={t.report.fields.fraudType}
                     value={form.fraudType ?? ""}
                     onChange={(v) => updateField("fraudType", v)}
                     required
                   >
                     <option value="">-- Select category --</option>
                     <option>Cryptocurrency / Digital Asset Fraud</option>
-                    <option>Investment / Securities Fraud</option>
-                    <option>Wire Transfer / ACH / BEC Fraud</option>
+                    <option>Investment / Securities Fraud / Boiler Room</option>
+                    <option>Wire Transfer / SEPA / ACH Fraud</option>
                     <option>Romance / Confidence Scam</option>
-                    <option>Tech Support / Government Impersonation</option>
+                    <option>Tech Support / Fake Law Enforcement Impersonation</option>
                     <option>Identity Theft / Account Takeover</option>
                     <option>Real Estate / Escrow Fraud</option>
-                    <option>Other (describe below)</option>
+                    <option>Other (describe in narrative)</option>
                   </LabeledSelect>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <LabeledSelect
-                    label="Approximate Loss (USD)"
+                    label={t.report.fields.lossRange}
                     value={form.lossRange ?? ""}
                     onChange={(v) => updateField("lossRange", v)}
                     required
                   >
-                    <option value="">-- Select range --</option>
-                    <option>Under $5,000</option>
-                    <option>$5,000 – $25,000</option>
-                    <option>$25,000 – $100,000</option>
-                    <option>$100,000 – $500,000</option>
-                    <option>$500,000 – $1,000,000</option>
-                    <option>Over $1,000,000</option>
+                    <option value="">-- Select loss range --</option>
+                    <option>Under $5,000 / €4,500 / £4,000</option>
+                    <option>$5,000 – $25,000 (€4,500 – €23,000 / £4,000 – £20,000)</option>
+                    <option>$25,000 – $100,000 (€23,000 – €95,000 / £20,000 – £80,000)</option>
+                    <option>$100,000 – $500,000 (€95,000 – €470,000 / £80,000 – £400,000)</option>
+                    <option>$500,000 – $1,000,000 (€470,000 – €950,000 / £400,000 – £800,000)</option>
+                    <option>Over $1,000,000 / €1,000,000 / £800,000+</option>
                   </LabeledSelect>
                   <Field
-                    label="Date Fraud Was Discovered"
+                    label={t.report.fields.dateDiscovered}
                     type="date"
                     value={form.dateDiscovered ?? ""}
                     onChange={(v) => updateField("dateDiscovered", v)}
                     required
                   />
                   <Field
-                    label="Date of Initial Transfer"
+                    label={t.report.fields.dateInitialTransfer}
                     type="date"
                     value={form.dateInitialTransfer ?? ""}
                     onChange={(v) => updateField("dateInitialTransfer", v)}
@@ -286,14 +325,14 @@ export default function ReportForm() {
 
                 <div className="mt-4">
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    Method of Payment{" "}
+                    {t.report.fields.paymentMethod}{" "}
                     <span className="text-[#b22234]">*</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                     {paymentOptions.map((m) => (
                       <label
                         key={m}
-                        className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5"
+                        className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2.5 py-2 hover:bg-slate-50 cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -301,7 +340,7 @@ export default function ReportForm() {
                           onChange={() => togglePayment(m)}
                           className="accent-[#b22234]"
                         />
-                        {m}
+                        <span className="text-slate-700 font-medium">{m}</span>
                       </label>
                     ))}
                   </div>
@@ -309,7 +348,7 @@ export default function ReportForm() {
 
                 <div className="mt-4">
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    Transaction IDs / Wallet Addresses / Wire Reference Numbers
+                    {t.report.fields.transactionIds}
                   </label>
                   <textarea
                     rows={3}
@@ -317,31 +356,31 @@ export default function ReportForm() {
                     onChange={(e) =>
                       updateField("transactionIds", e.target.value)
                     }
-                    placeholder="Paste all known transaction hashes, beneficiary wallet addresses, Fedwire/IMAD/OMAD numbers, etc."
-                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#0b1f3a] focus:outline-none"
+                    placeholder="Paste known blockchain hashes (TXIDs), destination wallet addresses, IBAN/BIC numbers, SWIFT/IMAD references..."
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-xs font-mono focus:border-[#0b1f3a] focus:outline-none"
                   />
                 </div>
 
                 <div className="mt-4">
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    Narrative — Describe the Fraud in Your Own Words
+                    {t.report.fields.narrative}
                   </label>
                   <textarea
                     rows={5}
                     value={form.narrative ?? ""}
                     onChange={(e) => updateField("narrative", e.target.value)}
-                    placeholder="Include how you were contacted, names/usernames of the perpetrators, platforms used (WhatsApp, Telegram, dating site, etc.), and any websites or phone numbers involved."
+                    placeholder="Describe how the perpetrators established contact, names/aliases used, communication channels (WhatsApp, Telegram, website URLs), and timeline of events..."
                     className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#0b1f3a] focus:outline-none"
                   />
                 </div>
 
                 <div className="mt-4">
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    Preferred Contact Method
+                    {t.report.fields.contactMethod}
                   </label>
-                  <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex flex-wrap gap-4 text-xs">
                     {contactOptions.map((c) => (
-                      <label key={c} className="flex items-center gap-2">
+                      <label key={c} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
                           name="contact"
@@ -350,7 +389,7 @@ export default function ReportForm() {
                           onChange={() => updateField("contactMethod", c)}
                           className="accent-[#b22234]"
                         />
-                        {c}
+                        <span className="text-slate-800 font-medium">{c}</span>
                       </label>
                     ))}
                   </div>
@@ -363,12 +402,7 @@ export default function ReportForm() {
                     className="mt-0.5 accent-[#b22234]"
                   />
                   <span>
-                    I certify under penalty of perjury under the laws of the
-                    United States of America that the foregoing is true and
-                    correct (18 U.S.C. § 1001). I understand that this
-                    submission is to a federal law enforcement agency and that
-                    false statements may result in criminal prosecution. I
-                    acknowledge receipt of the FBI Privacy Act Statement.
+                    I certify under penalty of perjury under applicable federal and international treaty laws that the information provided is truthful and accurate to the best of my knowledge. I understand this report initiates an official law enforcement inquiry and is governed by strict privacy standards.
                   </span>
                 </div>
 
@@ -376,11 +410,10 @@ export default function ReportForm() {
                   type="submit"
                   className="mt-6 w-full rounded-sm bg-[#b22234] px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-[#9a1c2c] md:w-auto"
                 >
-                  Submit Encrypted Intake Form →
+                  {t.report.submitBtn} →
                 </button>
                 <p className="mt-3 text-xs text-slate-500">
-                  Transmission is encrypted via TLS 1.3. Your information is not
-                  shared outside of law enforcement.
+                  Transatlantic encrypted transmission (TLS 1.3). Protected under U.S. Federal and European Union cross-border confidentiality protocols.
                 </p>
               </form>
             )}

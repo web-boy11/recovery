@@ -1,4 +1,8 @@
+import { useLanguage } from "../context/LanguageContext";
+
 export default function Hero() {
+  const { t } = useLanguage();
+
   return (
     <section
       id="home"
@@ -13,20 +17,14 @@ export default function Hero() {
         <div className="max-w-4xl">
           <div className="mb-4 inline-flex items-center gap-2 rounded-sm border border-[#c9a227]/60 bg-[#c9a227]/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#f5d76e]">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#c9a227]" />
-            Active Operation · 24/7 Response
+            {t.hero.badge}
           </div>
           <h1 className="mb-6 font-serif text-4xl leading-tight font-bold tracking-tight md:text-5xl lg:text-6xl">
-            You Were Scammed. <br />
-            <span className="text-[#c9a227]">We Can Help Recover Your Funds.</span>
+            {t.hero.titleLine1} <br />
+            <span className="text-[#c9a227]">{t.hero.titleGold}</span>
           </h1>
           <p className="mb-8 max-w-3xl text-lg leading-relaxed text-white/90 md:text-xl">
-            The FBI's dedicated Fraud &amp; Funds Recovery Unit, led by{" "}
-            <span className="font-semibold text-white">Special Agent Mc Collins</span>,
-            assists private U.S. citizens who have been victims of wire fraud,
-            cryptocurrency scams, investment fraud, romance scams, and online
-            financial exploitation. Our team works directly with financial
-            institutions, crypto exchanges, and international law enforcement
-            partners to trace, freeze, and return stolen assets.
+            {t.hero.body}
           </p>
 
           <div className="mb-10 flex flex-wrap gap-4">
@@ -34,22 +32,22 @@ export default function Hero() {
               href="#report"
               className="rounded-sm bg-[#b22234] px-7 py-3.5 text-base font-bold uppercase tracking-wider shadow-lg ring-1 ring-red-300/30 transition hover:bg-[#9a1c2c] hover:shadow-xl"
             >
-              File a Confidential Report
+              {t.hero.ctaReport}
             </a>
             <a
               href="#process"
               className="rounded-sm border-2 border-white/70 bg-white/10 px-7 py-3.5 text-base font-bold uppercase tracking-wider backdrop-blur hover:bg-white hover:text-[#0b1f3a]"
             >
-              View Recovery Process
+              {t.hero.ctaProcess}
             </a>
           </div>
 
           <div className="grid max-w-3xl grid-cols-2 gap-6 border-t border-white/20 pt-8 md:grid-cols-4">
             {[
-              { num: "$418M+", label: "Recovered (FY 2024)" },
-              { num: "3,200+", label: "Victims Assisted" },
-              { num: "47", label: "Active Agents" },
-              { num: "24/7", label: "Hotline" },
+              { num: t.hero.stats.recovered, label: t.hero.stats.recoveredLabel },
+              { num: t.hero.stats.victims, label: t.hero.stats.victimsLabel },
+              { num: t.hero.stats.agents, label: t.hero.stats.agentsLabel },
+              { num: t.hero.stats.hotline, label: t.hero.stats.hotlineLabel },
             ].map((s) => (
               <div key={s.label}>
                 <div className="font-serif text-2xl font-bold text-[#c9a227] md:text-3xl">
