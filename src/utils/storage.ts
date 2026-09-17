@@ -167,3 +167,76 @@ export function clearFormDraft(): void {
   localStorage.removeItem(DRAFT_KEY);
 }
 
+// ── Sent Email Communications Log ─────────────────────────────────────
+export interface SentEmailRecord {
+  id: string;
+  caseRef: string;
+  claimantName: string;
+  recipientEmail: string;
+  templateId: string;
+  templateName: string;
+  subject: string;
+  sentMethod: "gmail" | "outlook" | "mailto" | "direct" | "clipboard";
+  sentAt: string;
+}
+
+const SENT_EMAILS_KEY = "ffrd_sent_emails";
+
+export function getSentEmails(): SentEmailRecord[] {
+  try {
+    const raw = localStorage.getItem(SENT_EMAILS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function recordSentEmail(
+  record: Omit<SentEmailRecord, "id" | "sentAt">
+): SentEmailRecord {
+  const records = getSentEmails();
+  const newEntry: SentEmailRecord = {
+    ...record,
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    sentAt: new Date().toISOString(),
+  };
+  records.unshift(newEntry);
+  localStorage.setItem(SENT_EMAILS_KEY, JSON.stringify(records));
+  return newEntry;
+}
+
+export function deleteSentEmailRecord(id: string): void {
+  const records = getSentEmails().filter((r) => r.id !== id);
+  localStorage.setItem(SENT_EMAILS_KEY, JSON.stringify(records));
+}
+
+// ── In-Dashboard Direct Email Service Settings ─────────────────────────
+export interface EmailServiceSettings {
+  serviceId?: string;
+  templateId?: string;
+  publicKey?: string;
+  senderName?: string;
+  senderEmail?: string;
+}
+
+const EMAIL_SETTINGS_KEY = "ffrd_email_settings";
+
+export function getEmailServiceSettings(): EmailServiceSettings {
+  try {
+    const raw = localStorage.getItem(EMAIL_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : {
+      senderName: "Special Agent Mc Collins — FFRD",
+      senderEmail: "mccollins.unit@fbi.dhs.gov",
+    };
+  } catch {
+    return {
+      senderName: "Special Agent Mc Collins — FFRD",
+      senderEmail: "mccollins.unit@fbi.dhs.gov",
+    };
+  }
+}
+
+export function saveEmailServiceSettings(settings: EmailServiceSettings): void {
+  localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(settings));
+}
+

@@ -148,6 +148,7 @@ function getCaseCardHtml(data: EmailTemplateData): string {
               <td style="padding-bottom: 8px; width: 50%;">
                 <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">Registered Claimant</span><br />
                 <strong style="color: #1e293b; font-size: 13px;">${data.clientName}</strong>
+                ${data.email ? `<br /><span style="color: #0b1f3a; font-size: 11px; font-family: monospace; font-weight: 600;">&bull; ${data.email}</span>` : ""}
               </td>
             </tr>
             <tr>

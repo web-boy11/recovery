@@ -776,7 +776,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       {isEmailModalOpen && (
         <EmailModal
           submission={emailSubmission}
-          onClose={() => setIsEmailModalOpen(false)}
+          submissions={submissions}
+          onClose={() => {
+            setIsEmailModalOpen(false);
+            setEmailSubmission(null);
+          }}
         />
       )}
 
