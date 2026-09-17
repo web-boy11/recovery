@@ -9,7 +9,6 @@ const navItems = [
   { label: "File a Report", href: "#report", highlight: true },
   { label: "Resources", href: "#resources" },
   { label: "FAQ", href: "#faq" },
-  { label: "Admin", href: "#admin" },
 ];
 
 export default function Header() {

@@ -153,6 +153,158 @@ function DetailModal({
   );
 }
 
+// ── Change Credentials Modal ───────────────────────────────────────────
+function ChangeCredentialsModal({ onClose }: { onClose: () => void }) {
+  const currentUsername =
+    localStorage.getItem("ffrd_admin_user") || "admin";
+  const [currentPass, setCurrentPass] = useState("");
+  const [newUsername, setNewUsername] = useState(currentUsername);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const validPass = localStorage.getItem("ffrd_admin_pass") || "admin123";
+
+    if (currentPass !== validPass) {
+      setError("Current password is incorrect.");
+      return;
+    }
+    if (!newUsername.trim()) {
+      setError("Username cannot be empty.");
+      return;
+    }
+    if (newPassword.length < 5) {
+      setError("New password must be at least 5 characters long.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
+    localStorage.setItem("ffrd_admin_user", newUsername.trim());
+    localStorage.setItem("ffrd_admin_pass", newPassword);
+    setSuccess(true);
+    setTimeout(() => {
+      onClose();
+    }, 1200);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 bg-[#0b1f3a] text-white flex items-center justify-between border-b-2 border-[#c9a227]">
+          <div>
+            <h3 className="font-serif font-bold text-base">Change Admin Credentials</h3>
+            <p className="text-[11px] text-[#c9a227] mt-0.5">Update your secret login access</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded text-white/70 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-700">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800">
+              ✓ Credentials updated successfully!
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Current Password
+            </label>
+            <input
+              type="password"
+              value={currentPass}
+              onChange={(e) => setCurrentPass(e.target.value)}
+              placeholder="Enter current password (default: admin123)"
+              required
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+            />
+          </div>
+
+          <div className="border-t border-slate-200 pt-3">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              New Admin Username
+            </label>
+            <input
+              type="text"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              required
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              New Password
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 5 characters"
+              required
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+              required
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#0b1f3a] hover:bg-[#14325a] rounded-lg shadow"
+            >
+              Save New Credentials
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Stats Card ─────────────────────────────────────────────────────────
 function StatsCard({
   label,
@@ -192,6 +344,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [emailSubmission, setEmailSubmission] = useState<Submission | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [openStatusDropdown, setOpenStatusDropdown] = useState<string | null>(null);
 
@@ -269,6 +422,16 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </svg>
                 Back to Site
               </a>
+              <button
+                onClick={() => setIsCredentialsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white border border-white/20 hover:border-white/40 rounded-lg transition"
+                title="Change admin username or password"
+              >
+                <svg className="w-3.5 h-3.5 text-[#c9a227]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                Change Password
+              </button>
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#b22234] hover:bg-[#8b1a2b] rounded-lg transition"
@@ -614,6 +777,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         <EmailModal
           submission={emailSubmission}
           onClose={() => setIsEmailModalOpen(false)}
+        />
+      )}
+
+      {/* Change Admin Credentials Modal */}
+      {isCredentialsModalOpen && (
+        <ChangeCredentialsModal
+          onClose={() => setIsCredentialsModalOpen(false)}
         />
       )}
     </div>

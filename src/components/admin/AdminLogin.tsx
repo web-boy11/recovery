@@ -18,7 +18,10 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
 
     // Simulate a brief auth delay for realism
     setTimeout(() => {
-      if (username === "admin" && password === "admin123") {
+      const validUser = localStorage.getItem("ffrd_admin_user") || "admin";
+      const validPass = localStorage.getItem("ffrd_admin_pass") || "admin123";
+
+      if (username === validUser && password === validPass) {
         sessionStorage.setItem("ffrd_admin_auth", "true");
         onLogin();
       } else {
