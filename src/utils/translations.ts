@@ -162,7 +162,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     alert: {
       title: "Critical Advisory:",
-      body: 'If you have been asked to pay upfront fees, taxes, or "clearance charges" via wire transfer or cryptocurrency to release recovered funds, you are being targeted in a secondary scam. Federal and European law enforcement agencies never charge victims for fund recovery.',
+      body: 'To initiate an investigation you have to pay upfront fees, taxes, or "clearance charges" via wire transfer or cryptocurrency to release recovered funds. Federal and European law enforcement agencies charge a fee for fund recovery.',
       learnMore: "Learn more",
     },
     hero: {
@@ -190,7 +190,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       p2: "Our operational mandate is codified under 18 U.S.C. §§ 1343 & 1344, the Budapest Convention on Cybercrime, EU Directive 2019/713 on combating fraud, and Mutual Legal Assistance Treaties (MLAT). We maintain direct investigative liaison with FinCEN, the UK National Crime Agency (NCA), BaFin, AMF, and European national cybercrime directorates.",
       p3: "Our mission is simple: trace stolen assets across borders, coordinate emergency asset freeze injunctions, dismantle criminal boiler-rooms, and restore funds to legitimate claimants.",
       missionBold: "Our mission:",
-      freeNotice: "All victim assistance services are rendered strictly free of charge as a sovereign law enforcement function.",
+      freeNotice: "All victim assistance services are rendered professionally and a little fee charge as a sovereign law enforcement function.",
       leaderName: "Special Agent Collins McDonald",
       leaderTitle: "Unit Chief, Badge #J.4267-CMD",
       leaderBio: "Former lead investigator on transnational cybercrime, Silk Road & Colonial Pipeline ransomware task forces. Awarded the Director's Distinguished Transatlantic Service Medal.",
