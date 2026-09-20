@@ -67,8 +67,8 @@ export default function Seal({ size = 80 }: { size?: number }) {
       <text x="100" y="165" textAnchor="middle" fill="#0b1f3a" fontSize="8" fontWeight="700" letterSpacing="1">
         EST. 1908
       </text>
-      <text x="100" y="175" textAnchor="middle" fill="#8b1a2b" fontSize="6.5" fontWeight="600" letterSpacing="1">
-        MC COLLINS UNIT
+      <text x="100" y="175" textAnchor="middle" fill="#8b1a2b" fontSize="5.5" fontWeight="600" letterSpacing="0.6">
+        COLLINS MCDONALD UNIT
       </text>
     </svg>
   );

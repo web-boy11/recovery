@@ -132,7 +132,7 @@ export default function RecoveryProcess() {
 
         <div className="mt-16 rounded-sm border-l-4 border-[#0b1f3a] bg-[#0b1f3a]/5 p-6">
           <p className="text-sm leading-relaxed text-slate-700">
-            <strong className="text-[#0b1f3a]">Transatlantic Jurisdictional Notice:</strong> The Mc Collins Unit operates in direct coordination with Europol EC3, Interpol, and European national authorities. Cases reported within{" "}
+            <strong className="text-[#0b1f3a]">Transatlantic Jurisdictional Notice:</strong> The Collins McDonald Unit operates in direct coordination with Europol EC3, Interpol, and European national authorities. Cases reported within{" "}
             <strong className="text-[#b22234]">72 hours</strong> of the fraudulent wire or cryptocurrency transfer yield the highest probability of urgent asset freeze before cashout.
           </p>
         </div>

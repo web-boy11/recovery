@@ -26,7 +26,7 @@ declare global {
 }
 
 const WELCOME_TEXT =
-  "Welcome to the FBI Fraud & Funds Recovery Support portal. I am an automated intake assistant connected directly to Special Agent Mc Collins' unit. How may we assist with your case today?";
+  "Welcome to the FBI Fraud & Funds Recovery Support portal. I am an automated intake assistant connected directly to Special Agent Collins McDonald's unit. How may we assist with your case today?";
 
 const QUICK_ACTIONS = [
   "Check Case Status",
@@ -96,7 +96,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     );
   }
 
-  const label = isAgent ? "Special Agent Mc Collins" : "FBI Intake Bot";
+  const label = isAgent ? "Special Agent Collins McDonald" : "FBI Intake Bot";
   const bgClass = isAgent ? "" : "bg-slate-100";
   const bgStyle = isAgent ? { backgroundColor: "#0b1f3a" } : undefined;
   const textClass = isAgent ? "text-white" : "text-slate-800";
@@ -245,7 +245,7 @@ export default function ChatWidget() {
       if (response === "__CONNECT_AGENT__") {
         const connectingMsg = addChatMessage(
           "bot",
-          "Connecting your session with a sworn live agent from the Mc Collins Unit…"
+          "Connecting your session with a sworn live agent from the Collins McDonald Unit…"
         );
         setMessages((prev) => [...prev, connectingMsg]);
         setIsTyping(false);
@@ -253,7 +253,7 @@ export default function ChatWidget() {
         setTimeout(() => {
           const joinMsg = addChatMessage(
             "agent",
-            "Special Agent Mc Collins has joined this encrypted channel. Please provide your Case Reference or describe the fraudulent incident."
+            "Special Agent Collins McDonald has joined this encrypted channel. Please provide your Case Reference or describe the fraudulent incident."
           );
           setChatMode("agent");
           setMode("agent");
@@ -357,7 +357,7 @@ export default function ChatWidget() {
                     FBI Fraud Recovery Support
                   </h3>
                   <p className="text-[10px] text-white/75">
-                    Cybercrime &amp; Asset Recovery · Mc Collins Unit
+                    Cybercrime &amp; Asset Recovery · Collins McDonald Unit
                   </p>
                 </div>
               </div>
@@ -424,7 +424,7 @@ export default function ChatWidget() {
                   </h3>
                   <p className="text-[10px] text-[#c9a227] flex items-center gap-1 font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Special Agent Mc Collins Unit
+                    Special Agent Collins McDonald Unit
                   </p>
                 </div>
               </div>
@@ -448,7 +448,7 @@ export default function ChatWidget() {
                 }}
               />
               {mode === "agent"
-                ? "Live Agent: Special Agent Mc Collins"
+                ? "Live Agent: Special Agent Collins McDonald"
                 : "Automated Intake Bot"}
             </span>
             <span className="text-[10px] uppercase tracking-wider text-slate-400">

@@ -51,7 +51,7 @@ export default function Footer() {
                 About the Division
               </h4>
               <ul className="space-y-2 text-sm text-white/80">
-                <li><a href="#about" className="hover:text-[#c9a227]">About Agent Mc Collins</a></li>
+                <li><a href="#about" className="hover:text-[#c9a227]">About Agent Collins McDonald</a></li>
                 <li><a href="#fraud-types" className="hover:text-[#c9a227]">Transatlantic Jurisdiction</a></li>
                 <li><a href="#" className="hover:text-[#c9a227]">Budapest Convention Accord</a></li>
                 <li><a href="#" className="hover:text-[#c9a227]">Interpol Red Notice Authority</a></li>
@@ -78,7 +78,7 @@ export default function Footer() {
                 </li>
                 <li>
                   <div className="text-xs uppercase tracking-wider text-white/60">Encrypted Email Relay</div>
-                  <div className="font-mono text-xs text-[#c9a227]">mccollins.unit@fbi.dhs.gov</div>
+                  <div className="font-mono text-xs text-[#c9a227]">collins.mcdonald@fbi.dhs.gov</div>
                 </li>
               </ul>
             </div>

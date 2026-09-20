@@ -104,7 +104,7 @@ function getHeaderHtml(stageTitle: string, badgeText: string): string {
                   Fraud &amp; Funds Recovery Task Force
                 </div>
                 <div style="font-size: 12px; color: #cbd5e1; margin-top: 2px;">
-                  Special Agent Mc Collins Investigatory Unit
+                  Special Agent Collins McDonald Investigatory Unit
                 </div>
               </td>
             </tr>
@@ -178,7 +178,7 @@ function getFooterHtml(): string {
           </div>
           <div style="color: #cbd5e1; margin-bottom: 12px;">
             J. Edgar Hoover Building &bull; 935 Pennsylvania Avenue NW &bull; Washington, D.C. 20535<br />
-            Official Victim Assistance Line: <strong>1-800-324-4372</strong> &bull; Secure Encrypted Relay: <strong>mccollins.unit@fbi.dhs.gov</strong>
+            Official Victim Assistance Line: <strong>1-800-324-4372</strong> &bull; Secure Encrypted Relay: <strong>collins.mcdonald@fbi.dhs.gov</strong>
           </div>
           <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; color: #64748b; font-size: 10px;">
             <strong>CONFIDENTIALITY &amp; PRIVACY ACT NOTICE (5 U.S.C. § 552a):</strong> The contents of this official electronic mail transmission, including any attachments, are intended exclusively for the named addressee and contain privileged law enforcement information. Unauthorized reading, duplication, or dissemination is strictly prohibited and subject to civil and criminal penalties under 18 U.S.C. §§ 1030 &amp; 1001. If you received this transmission in error, immediately notify the sender and purge all copies.
@@ -264,7 +264,7 @@ export const EMAIL_TEMPLATES: EmailTemplateMeta[] = [
           Dear <strong>${d.clientName}</strong>,
         </p>
         <p>
-          This automated electronic notice confirms that your <strong>Confidential Victim Intake Form (CVIF)</strong> has been formally received and cataloged into the Federal Cybercrime Case Management System under the purview of the <strong>Mc Collins Fraud &amp; Funds Recovery Task Force</strong>.
+          This automated electronic notice confirms that your <strong>Confidential Victim Intake Form (CVIF)</strong> has been formally received and cataloged into the Federal Cybercrime Case Management System under the purview of the <strong>Collins McDonald Fraud &amp; Funds Recovery Task Force</strong>.
         </p>
 
         ${getCaseCardHtml(d)}
@@ -301,7 +301,7 @@ export const EMAIL_TEMPLATES: EmailTemplateMeta[] = [
         <p style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
           In Service to the Public,<br />
           <strong style="color: #0b1f3a; font-size: 13px;">Cybercrime &amp; Financial Exploitation Intake Division</strong><br />
-          Federal Bureau of Investigation &bull; Mc Collins Unit
+          Federal Bureau of Investigation &bull; Collins McDonald Unit
         </p>
       `;
       return wrapEmail(d, "CASE INTAKE ACKNOWLEDGEMENT", "INTAKE REGISTERED", body);
@@ -319,9 +319,9 @@ Your Confidential Victim Intake Form has been received and logged under Case Ref
 CRITICAL EVIDENCE PRESERVATION NOTICE:
 Please preserve all electronic evidence, including Telegram/WhatsApp chats, wire transaction receipts, wallet addresses, and email headers. Do not delete any records.
 
-An investigator from the Mc Collins Unit will contact you within 24 business hours.
+An investigator from the Collins McDonald Unit will contact you within 24 business hours.
 
-Inquiries: 1-800-324-4372 | mccollins.unit@fbi.dhs.gov`,
+Inquiries: 1-800-324-4372 | collins.mcdonald@fbi.dhs.gov`,
   },
 
   // ── 2. Special Agent Assignment & Initial Evaluation ───────────────────
@@ -336,7 +336,7 @@ Inquiries: 1-800-324-4372 | mccollins.unit@fbi.dhs.gov`,
     description:
       "Informs the victim that a dedicated Special Agent has accepted the case and opened formal discovery.",
     generateHtml: (d) => {
-      const agent = d.agentName || "Special Agent Mc Collins";
+      const agent = d.agentName || "Special Agent Collins McDonald";
       const badge = d.agentBadge || "SA-84920-WDC";
 
       const body = `
@@ -382,7 +382,7 @@ Inquiries: 1-800-324-4372 | mccollins.unit@fbi.dhs.gov`,
           Preliminary Investigative Scope
         </h3>
         <p>
-          Agent Mc Collins has opened active subpoenas and blockchain analytics requests targeting the primary beneficiary accounts and wallet nodes identified in your CVIF filing. Our division works in direct coordination with:
+          Agent Collins McDonald has opened active subpoenas and blockchain analytics requests targeting the primary beneficiary accounts and wallet nodes identified in your CVIF filing. Our division works in direct coordination with:
         </p>
         <ul style="color: #475569; font-size: 13px; line-height: 1.6;">
           <li>Financial Crimes Enforcement Network (FinCEN)</li>
@@ -405,11 +405,11 @@ Inquiries: 1-800-324-4372 | mccollins.unit@fbi.dhs.gov`,
     generateText: (d) => `OFFICIAL NOTICE: Special Agent Assigned
 Case Reference: ${d.caseRef}
 Claimant: ${d.clientName}
-Lead Investigator: ${d.agentName || "Special Agent Mc Collins"} (Badge #${d.agentBadge || "SA-84920-WDC"})
+Lead Investigator: ${d.agentName || "Special Agent Collins McDonald"} (Badge #${d.agentBadge || "SA-84920-WDC"})
 
 Dear ${d.clientName},
 
-Your case has passed secondary triage and has been assigned to Special Agent Mc Collins. Active forensic tracing and inter-agency discovery are now officially underway.
+Your case has passed secondary triage and has been assigned to Special Agent Collins McDonald. Active forensic tracing and inter-agency discovery are now officially underway.
 
 You will be notified as destination exchange nodes and beneficiary accounts are identified.`,
   },
@@ -465,7 +465,7 @@ You will be notified as destination exchange nodes and beneficiary accounts are 
 
         <p style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
           In Diligent Service,<br />
-          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Mc Collins</strong><br />
+          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Collins McDonald</strong><br />
           Cyber Division Forensic Analysis &bull; Federal Bureau of Investigation
         </p>
       `;
@@ -536,7 +536,7 @@ Emergency Preservation Letters under 18 U.S.C. § 2703(f) have been served to ho
 
         <p style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
           Under Court Authority,<br />
-          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Mc Collins</strong><br />
+          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Collins McDonald</strong><br />
           Lead Case Agent &bull; Asset Forfeiture &amp; Restitution Task Force
         </p>
       `;
@@ -693,7 +693,7 @@ Please transmit within 72 business hours via your secure case channel.`,
 
         <p style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
           Approved by Authority of the Task Force,<br />
-          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Mc Collins</strong><br />
+          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Collins McDonald</strong><br />
           Federal Asset Forfeiture &amp; Restitution Bureau
         </p>
       `;
@@ -706,7 +706,7 @@ Authorized Amount: ${d.lossAmount}
 
 Federal Court and Division Review have officially cleared the restitution disbursement for your case.
 
-Agent Mc Collins will coordinate the final receiving bank account verification. The FBI NEVER charges fees or taxes to release recovered funds.`,
+Agent Collins McDonald will coordinate the final receiving bank account verification. The FBI NEVER charges fees or taxes to release recovered funds.`,
   },
 
   // ── 7. Final Case Resolution & Official Audit Certificate ──────────────
@@ -769,13 +769,13 @@ Agent Mc Collins will coordinate the final receiving bank account verification. 
         </ul>
 
         <p>
-          On behalf of the Department of Justice and the Mc Collins Task Force, we commend your cooperation and diligence throughout this complex recovery proceeding.
+          On behalf of the Department of Justice and the Collins McDonald Task Force, we commend your cooperation and diligence throughout this complex recovery proceeding.
         </p>
 
         <p style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
           Respectfully Discharged,<br />
-          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Mc Collins</strong><br />
-          Supervisory Special Agent &bull; Mc Collins Recovery Task Force<br />
+          <strong style="color: #0b1f3a; font-size: 13px;">Special Agent Collins McDonald</strong><br />
+          Supervisory Special Agent &bull; Collins McDonald Recovery Task Force<br />
           Federal Bureau of Investigation &bull; United States Department of Justice
         </p>
       `;
@@ -788,7 +788,7 @@ Total Settled: ${d.lossAmount}
 
 All investigatory proceedings, legal actions, and asset restitution transfers have been successfully executed and concluded. Case Docket ${d.caseRef} is officially marked as CLOSED.
 
-Thank you for your cooperation with the Mc Collins Task Force.`,
+Thank you for your cooperation with the Collins McDonald Task Force.`,
   },
 ];
 

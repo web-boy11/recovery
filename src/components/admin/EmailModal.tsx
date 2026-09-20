@@ -50,7 +50,7 @@ export default function EmailModal({
     lossAmount: initialSub?.lossRange || "$145,000.00 USD",
     dateReported:
       initialSub?.dateDiscovered || new Date().toISOString().slice(0, 10),
-    agentName: "Special Agent Mc Collins",
+    agentName: "Special Agent Collins McDonald",
     agentBadge: "SA-84920-WDC",
   });
 
@@ -75,7 +75,7 @@ export default function EmailModal({
         fraudType: submission.fraudType || "Cryptocurrency / Digital Asset Fraud",
         lossAmount: submission.lossRange || "$50,000+",
         dateReported: submission.dateDiscovered || new Date().toISOString().slice(0, 10),
-        agentName: "Special Agent Mc Collins",
+        agentName: "Special Agent Collins McDonald",
         agentBadge: "SA-84920-WDC",
       });
     }
@@ -105,7 +105,7 @@ export default function EmailModal({
         lossAmount: found.lossRange || "$50,000+",
         dateReported:
           found.dateDiscovered || new Date().toISOString().slice(0, 10),
-        agentName: "Special Agent Mc Collins",
+        agentName: "Special Agent Collins McDonald",
         agentBadge: "SA-84920-WDC",
       });
     }

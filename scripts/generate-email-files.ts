@@ -23,7 +23,7 @@ const sampleData: EmailTemplateData = {
   fraudType: "Cryptocurrency / Digital Asset Fraud",
   lossAmount: "$145,000.00 USD",
   dateReported: "2025-01-14",
-  agentName: "Special Agent Mc Collins",
+  agentName: "Special Agent Collins McDonald",
   agentBadge: "SA-84920-WDC",
   actionUrl: "http://localhost:5173/#report",
 };
@@ -61,7 +61,7 @@ const indexHtml = `<!DOCTYPE html>
 <body>
   <div class="container">
     <h1>Official Case Update Email Templates</h1>
-    <p class="subtitle">U.S. Department of Justice &bull; FBI Cybercrime &amp; Fraud Recovery Division &bull; Mc Collins Unit</p>
+    <p class="subtitle">U.S. Department of Justice &bull; FBI Cybercrime &amp; Fraud Recovery Division &bull; Collins McDonald Unit</p>
     <div class="grid">
       ${EMAIL_TEMPLATES.map(
         (tpl, idx) => `

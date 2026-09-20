@@ -56,7 +56,7 @@ export default function About() {
               </h3>
               <ul className="space-y-3 text-sm">
                 {[
-                  "FBI — Special Agent credential #J.4267-MC",
+                  "FBI — Special Agent credential #J.4267-CMD",
                   "U.S. Department of Justice — Sworn Federal Officer",
                   "Europol EC3 Joint Task Force Liaison Accreditation",
                   "Interpol Financial Crime Centre (IFCACC) Accredited",

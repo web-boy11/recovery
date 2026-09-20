@@ -73,7 +73,7 @@ export default function FraudTypes() {
             {t.fraudTypes.title}
           </h2>
           <p className="text-[15px] leading-relaxed text-slate-700">
-            {t.fraudTypes.subtitle} (Loss threshold: $5,000 / €4,500 / £4,000+). All matters below fall within the primary investigative jurisdiction of the Mc Collins Transatlantic Unit.
+            {t.fraudTypes.subtitle} (Loss threshold: $5,000 / €4,500 / £4,000+). All matters below fall within the primary investigative jurisdiction of the Collins McDonald Transatlantic Unit.
           </p>
         </div>
 
