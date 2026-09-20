@@ -8,7 +8,7 @@ export default function FAQ() {
   const faqs = [
     {
       q: "Does the Task Force or FBI charge fees for fund recovery services?",
-      a: "No. Federal and European law enforcement agencies never charge victims for investigation, asset tracing, or the return of recovered funds. Anyone purporting to be an investigator or government representative who demands upfront fees, taxes, 'clearance charges,' cryptocurrency payments, or gift cards is perpetrating a secondary scam. Disengage immediately and report them.",
+      a: "No. Federal and European law enforcement agencies never charge victims for investigation, asset tracing, or the return of recovered funds outside the official platform. Anyone purporting to be an investigator or government representative who demands upfront fees, taxes, 'clearance charges,' cryptocurrency payments, or gift cards is perpetrating a secondary scam. Disengage immediately and report them.",
     },
     {
       q: "How long does the international recovery process take?",
