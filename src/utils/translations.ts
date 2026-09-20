@@ -332,7 +332,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     alert: {
       title: "Wichtige Warnung:",
-      body: 'Wenn Sie aufgefordert werden, vorab Gebühren, Steuern oder "Freigabegebühren" per Banküberweisung oder Kryptowährung zu zahlen, um sichergestellte Gelder freizugeben, handelt es sich um einen Folgebetrug. Behörden verlangen niemals Gebühren von Opfern.',
+      body: 'Um eine Untersuchung einzuleiten, müssen Sie Vorabgebühren, Steuern oder sogenannte „Freigabegebühren“ per Überweisung oder Kryptowährung entrichten, damit die wiedererlangten Gelder freigegeben werden. Strafverfolgungsbehörden auf Bundes- und EU-Ebene erheben eine Gebühr für die Wiederbeschaffung von Geldern.',
       learnMore: "Mehr erfahren",
     },
     hero: {
@@ -360,7 +360,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       p2: "Unsere Befugnisse stützen sich auf internationale Rechtshilfeabkommen (MLAT), die Budapester Cybercrime-Konvention und die EU-Richtlinie 2019/713 zur Betrugsbekämpfung. Wir kooperieren eng mit BKA, BaFin, Interpol und europäischen Staatsanwaltschaften.",
       p3: "Unser Ziel: Gestohlene Gelder über Landesgrenzen hinweg aufzuspüren, Konten und Krypto-Wallets gerichtlich einzufrieren und das Kapital vollständig an die Geschädigten zurückzugeben.",
       missionBold: "Unser Auftrag:",
-      freeNotice: "Sämtliche Unterstützungsleistungen für Betrugsopfer sind im Rahmen staatlicher Strafverfolgung vollkommen kostenfrei.",
+      freeNotice: "Sämtliche Opferhilfedienste werden professionell und gegen eine geringe Gebühr als hoheitliche Aufgabe der Strafverfolgungsbehörden erbracht.",
       leaderName: "Special Agent Collins McDonald",
       leaderTitle: "Leiter der Einheit, Dienstmarke #J.4267-CMD",
       leaderBio: "22 Jahre Erfahrung in transnationalen Finanzermittlungen und Blockchain-Forensik. Ausgezeichnet für herausragende transatlantische Verdienste.",
