@@ -60,3 +60,4 @@ export function WhatsAppBadge({
 }
 
 export default WhatsAppBadge;
+

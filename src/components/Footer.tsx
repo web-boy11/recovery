@@ -90,7 +90,12 @@ export default function Footer() {
                 </li>
                 <li>
                   <div className="text-xs uppercase tracking-wider text-white/60">Encrypted Email Relay</div>
-                  <div className="font-mono text-xs text-[#c9a227]">collins.mcdonald@fbi.dhs.gov</div>
+                  <a
+                    href="mailto:collinsmcdonald@globalfraudrecovery.site"
+                    className="font-mono text-xs text-[#c9a227] hover:underline"
+                  >
+                    collinsmcdonald@globalfraudrecovery.site
+                  </a>
                 </li>
               </ul>
             </div>

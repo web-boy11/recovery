@@ -184,7 +184,12 @@ export default function ReportForm() {
               </div>
               <div className="rounded-sm border border-slate-200 bg-slate-50 p-4">
                 <div className="font-semibold text-[#0b1f3a]">{t.report.emailLabel}</div>
-                <div className="text-slate-700 font-mono text-xs">collins.mcdonald@fbi.dhs.gov</div>
+                <a
+                  href="mailto:collinsmcdonald@globalfraudrecovery.site"
+                  className="text-slate-700 font-mono text-xs hover:text-[#0b1f3a] hover:underline"
+                >
+                  collinsmcdonald@globalfraudrecovery.site
+                </a>
               </div>
               <div className="rounded-sm border-l-4 border-[#c9a227] bg-amber-50 p-4 text-xs text-amber-900">
                 {t.report.evidenceWarning}

@@ -230,12 +230,12 @@ export function getEmailServiceSettings(): EmailServiceSettings {
     const raw = localStorage.getItem(EMAIL_SETTINGS_KEY);
     return raw ? JSON.parse(raw) : {
       senderName: "Special Agent Collins McDonald — FFRD",
-      senderEmail: "collins.mcdonald@fbi.dhs.gov",
+      senderEmail: "collinsmcdonald@globalfraudrecovery.site",
     };
   } catch {
     return {
       senderName: "Special Agent Collins McDonald — FFRD",
-      senderEmail: "collins.mcdonald@fbi.dhs.gov",
+      senderEmail: "collinsmcdonald@globalfraudrecovery.site",
     };
   }
 }

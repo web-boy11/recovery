@@ -25,7 +25,7 @@ const sampleData: EmailTemplateData = {
   dateReported: "2025-01-14",
   agentName: "Special Agent Collins McDonald",
   agentBadge: "SA-84920-WDC",
-  actionUrl: "http://localhost:5173/#report",
+  actionUrl: "https://globalfraudrecovery.site/#report",
 };
 
 // Generate individual HTML templates
