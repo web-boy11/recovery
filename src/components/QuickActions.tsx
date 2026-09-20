@@ -1,3 +1,5 @@
+import { WhatsAppIcon, WhatsAppBadge, OFFICIAL_PHONE, WHATSAPP_URL } from "./WhatsAppBadge";
+
 const actions = [
   {
     icon: (
@@ -9,17 +11,19 @@ const actions = [
     desc: "Initiate a confidential case file with our unit.",
     href: "#report",
     color: "bg-[#b22234]",
+    isWhatsApp: false,
+    external: false,
   },
   {
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-7 w-7">
-        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <WhatsAppIcon className="h-7 w-7 fill-white" />
     ),
-    title: "Call the Hotline",
-    desc: "1-800-FBI-4FRAUD (1-800-324-4372)",
-    href: "tel:18003244372",
-    color: "bg-[#0b1f3a]",
+    title: "WhatsApp Dispatch",
+    desc: OFFICIAL_PHONE,
+    href: WHATSAPP_URL,
+    color: "bg-[#25D366]",
+    isWhatsApp: true,
+    external: true,
   },
   {
     icon: (
@@ -55,14 +59,21 @@ export default function QuickActions() {
             <a
               key={a.title}
               href={a.href}
+              target={a.external ? "_blank" : undefined}
+              rel={a.external ? "noopener noreferrer" : undefined}
               className="group flex items-center gap-4 rounded-sm border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#c9a227] hover:shadow-md"
             >
               <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-sm ${a.color} text-white group-hover:bg-[#c9a227] group-hover:text-[#0b1f3a]`}>
                 {a.icon}
               </div>
-              <div>
-                <div className="font-serif text-base font-bold text-[#0b1f3a]">{a.title}</div>
-                <div className="text-sm text-slate-600">{a.desc}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-serif text-base font-bold text-[#0b1f3a]">{a.title}</span>
+                  {a.isWhatsApp && (
+                    <WhatsAppBadge label="WhatsApp" size="sm" variant="solid" />
+                  )}
+                </div>
+                <div className="text-sm font-medium text-slate-600 truncate">{a.desc}</div>
               </div>
             </a>
           ))}

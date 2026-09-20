@@ -1,5 +1,6 @@
 import Seal from "./Seal";
 import { useLanguage } from "../context/LanguageContext";
+import { WhatsAppBadge, OFFICIAL_PHONE, WHATSAPP_URL } from "./WhatsAppBadge";
 
 export default function Footer() {
   const { t } = useLanguage();
@@ -65,8 +66,19 @@ export default function Footer() {
               </h4>
               <ul className="space-y-3 text-sm text-white/80">
                 <li>
-                  <div className="text-xs uppercase tracking-wider text-white/60">24/7 International Dispatch</div>
-                  <div className="font-bold text-white">1-800-324-4372 / +1 (202) 324-3000</div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs uppercase tracking-wider text-white/60">24/7 International Dispatch</span>
+                    <WhatsAppBadge label="WhatsApp" size="sm" variant="solid" />
+                  </div>
+                  <a
+                    href={WHATSAPP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 font-bold text-white hover:text-[#25D366] transition-colors"
+                  >
+                    <span>{OFFICIAL_PHONE}</span>
+                    <span className="text-[10px] font-normal text-emerald-400 underline">Chat on WhatsApp &rarr;</span>
+                  </a>
                 </li>
                 <li>
                   <div className="text-xs uppercase tracking-wider text-white/60">Washington D.C. Headquarters</div>

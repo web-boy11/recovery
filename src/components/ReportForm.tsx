@@ -7,6 +7,7 @@ import {
   type FormDraft,
 } from "../utils/storage";
 import { useLanguage } from "../context/LanguageContext";
+import { WhatsAppBadge, OFFICIAL_PHONE, WHATSAPP_URL } from "./WhatsAppBadge";
 
 const paymentOptions = [
   "Bank Wire (SWIFT / Fedwire)",
@@ -161,8 +162,25 @@ export default function ReportForm() {
 
             <div className="space-y-4 text-sm">
               <div className="rounded-sm border border-slate-200 bg-slate-50 p-4">
-                <div className="font-semibold text-[#0b1f3a]">{t.report.hotlineLabel}</div>
-                <div className="text-lg font-bold text-[#b22234]">1-800-324-4372 / +1 (202) 324-3000</div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="font-semibold text-[#0b1f3a]">{t.report.hotlineLabel}</div>
+                  <WhatsAppBadge label="WhatsApp" size="sm" variant="solid" />
+                </div>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between text-lg font-bold text-[#075E54] hover:text-[#25D366] transition-colors"
+                  title="Open encrypted chat on WhatsApp"
+                >
+                  <span>{OFFICIAL_PHONE}</span>
+                  <span className="text-[11px] font-medium text-white bg-[#25D366] px-2 py-0.5 rounded shadow-sm group-hover:bg-[#20ba59]">
+                    Chat &rarr;
+                  </span>
+                </a>
+                <div className="mt-1 text-[11px] text-slate-500">
+                  Official WhatsApp &amp; International Encrypted Relay
+                </div>
               </div>
               <div className="rounded-sm border border-slate-200 bg-slate-50 p-4">
                 <div className="font-semibold text-[#0b1f3a]">{t.report.emailLabel}</div>

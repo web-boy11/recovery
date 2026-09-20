@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Seal from "../Seal";
+import { WhatsAppIcon, WhatsAppBadge, OFFICIAL_PHONE, WHATSAPP_URL } from "../WhatsAppBadge";
 import type { ChatMessage } from "../../utils/chatStore";
 import {
   getChatMessages,
@@ -391,7 +392,7 @@ export default function ChatWidget() {
             </div>
 
             {/* Quick Action Chips connected to Chatbot */}
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {QUICK_ACTIONS.map((action) => (
                 <button
                   key={action}
@@ -401,6 +402,16 @@ export default function ChatWidget() {
                   {action}
                 </button>
               ))}
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded bg-[#25D366] px-2 py-1 text-[10px] font-bold text-white hover:bg-[#20ba59] transition-all shadow-sm"
+                title="Connect with Live WhatsApp Dispatch"
+              >
+                <WhatsAppIcon className="w-2.5 h-2.5 fill-current" />
+                <span>WhatsApp: {OFFICIAL_PHONE}</span>
+              </a>
             </div>
           </div>
         </aside>
@@ -463,7 +474,7 @@ export default function ChatWidget() {
             ))}
             {isTyping && <TypingIndicator />}
             {showQuickActions && messages.length <= 1 && (
-              <div className="flex flex-wrap gap-1.5 my-2">
+              <div className="flex flex-wrap items-center gap-1.5 my-2">
                 {QUICK_ACTIONS.map((action) => (
                   <button
                     key={action}
@@ -473,6 +484,15 @@ export default function ChatWidget() {
                     {action}
                   </button>
                 ))}
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#25D366] text-white hover:bg-[#20ba59] transition-all shadow-sm"
+                >
+                  <WhatsAppIcon className="w-3 h-3 fill-current" />
+                  <span>WhatsApp ({OFFICIAL_PHONE})</span>
+                </a>
               </div>
             )}
             <div ref={messagesEndRef} />
