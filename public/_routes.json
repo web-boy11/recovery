@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "include": ["/api/*", "/.netlify/functions/*"],
-  "exclude": []
+  "description": "Route API requests through the _worker.js; serve everything else as static assets.",
+  "include": ["/api/*"],
+  "exclude": ["/favicon.svg", "/og-image.jpg", "/email-templates/*"]
 }
-
