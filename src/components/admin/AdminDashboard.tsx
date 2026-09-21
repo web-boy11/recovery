@@ -357,6 +357,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   useEffect(() => {
     refreshData();
+    // 1. Listen for cross-tab storage changes
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "ffrd_submissions" || !e.key) {
+        refreshData();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    // 2. Poll every 2.5 seconds so submissions in same window appear live
+    const timer = setInterval(refreshData, 2500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      clearInterval(timer);
+    };
   }, [refreshData]);
 
   // Filter by search
