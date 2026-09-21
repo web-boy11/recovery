@@ -74,6 +74,7 @@ export async function sendEmail(
     try {
       const endpoints = [
         settings.customApiUrl ? settings.customApiUrl.trim() : null,
+        "https://recovery-email-api.seanjordanw.workers.dev/",
         "/api/send-email",
         "/.netlify/functions/send-email",
       ].filter(Boolean) as string[];

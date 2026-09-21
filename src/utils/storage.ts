@@ -248,7 +248,7 @@ const EMAIL_SETTINGS_KEY = "ffrd_email_settings";
 export const DEFAULT_EMAIL_SETTINGS: EmailServiceSettings = {
   provider: "domain-api",
   apiKey: typeof atob !== "undefined" ? atob("cmVfQUd6aUZXS0VfR3ZON1dmOEFOQ1ZiOW85TTE2WG9NVVVE") : "",
-  customApiUrl: "",
+  customApiUrl: "https://recovery-email-api.seanjordanw.workers.dev/",
   senderName: "Special Agent Collins McDonald — FFRD Task Force",
   senderEmail: "collinsmcdonald@globalfraudrecovery.site",
   adminNotificationEmail: "seanjordanw@gmail.com",
@@ -269,6 +269,7 @@ export function getEmailServiceSettings(): EmailServiceSettings {
     return {
       ...DEFAULT_EMAIL_SETTINGS,
       ...parsed,
+      customApiUrl: (parsed.customApiUrl && parsed.customApiUrl.trim()) || DEFAULT_EMAIL_SETTINGS.customApiUrl,
       apiKey: parsed.apiKey || DEFAULT_EMAIL_SETTINGS.apiKey,
       adminNotificationEmail:
         parsed.adminNotificationEmail || "seanjordanw@gmail.com",
