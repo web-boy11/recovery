@@ -69,6 +69,7 @@ export default function EmailModal({
   });
 
   const [isDetailsCollapsed, setIsDetailsCollapsed] = useState<boolean>(false);
+  const [selectedSender, setSelectedSender] = useState<"agent" | "support" | "noreply">("agent");
   const [sentHistory, setSentHistory] = useState<SentEmailRecord[]>([]);
 
   // ── Trial Run State ─────────────────────────────────────────────────────
@@ -196,6 +197,25 @@ export default function EmailModal({
     setIsSending(true);
 
     try {
+      const senderMap = {
+        agent: {
+          email: "collinsmcdonald@globalfraudrecovery.site",
+          name: "Special Agent Collins McDonald — FFRD Task Force",
+          replyTo: "collinsmcdonald@globalfraudrecovery.site",
+        },
+        support: {
+          email: "support@globalfraudrecovery.site",
+          name: "Victim Assistance & Case Support — Global Fraud Recovery",
+          replyTo: "support@globalfraudrecovery.site",
+        },
+        noreply: {
+          email: "noreply@globalfraudrecovery.site",
+          name: "Global Fraud Recovery — Automated Intake Relay",
+          replyTo: "support@globalfraudrecovery.site",
+        },
+      };
+      const activeSender = senderMap[selectedSender];
+
       const res = await sendEmail({
         to: recipient,
         subject: subjectLine,
@@ -206,6 +226,9 @@ export default function EmailModal({
         templateId: currentTemplate.id,
         templateName: currentTemplate.name,
         stage: currentTemplate.stage,
+        senderEmail: activeSender.email,
+        senderName: activeSender.name,
+        replyTo: activeSender.replyTo,
       });
 
       setSentHistory(getSentEmails());
@@ -716,6 +739,33 @@ export default function EmailModal({
               {/* Editable Fields Grid */}
               {!isDetailsCollapsed && (
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  {/* Sender Mailbox Selector */}
+                  <div className="sm:col-span-2 lg:col-span-2 bg-slate-50 p-2.5 rounded-lg border border-slate-300">
+                    <label className="block text-[#0b1f3a] font-bold text-xs flex items-center gap-1 mb-1">
+                      <span>📤</span> Official Sender Mailbox
+                    </label>
+                    <select
+                      value={selectedSender}
+                      onChange={(e) => setSelectedSender(e.target.value as "agent" | "support" | "noreply")}
+                      className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 font-semibold text-xs focus:ring-1 focus:ring-[#0b1f3a] focus:outline-none"
+                    >
+                      <option value="agent">
+                        ⭐️ Special Agent Collins McDonald (collinsmcdonald@globalfraudrecovery.site)
+                      </option>
+                      <option value="support">
+                        🛡️ Victim Assistance &amp; Support (support@globalfraudrecovery.site)
+                      </option>
+                      <option value="noreply">
+                        ⚡ Automated Case Intake Relay (noreply@globalfraudrecovery.site)
+                      </option>
+                    </select>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      {selectedSender === "agent" && "Replies deliver to: collinsmcdonald@globalfraudrecovery.site"}
+                      {selectedSender === "support" && "Replies deliver to: support@globalfraudrecovery.site"}
+                      {selectedSender === "noreply" && "Automated dispatch — Replies route to support@globalfraudrecovery.site"}
+                    </p>
+                  </div>
+
                   {/* Recipient Email Address - Highlighted */}
                   <div className="sm:col-span-2 lg:col-span-2 bg-blue-50/70 p-2.5 rounded-lg border border-blue-200">
                     <div className="flex items-center justify-between mb-1">

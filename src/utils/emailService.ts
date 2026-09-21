@@ -20,6 +20,9 @@ export interface DispatchEmailOptions {
   templateId: string;
   templateName: string;
   stage?: string;
+  senderName?: string;
+  senderEmail?: string;
+  replyTo?: string;
 }
 
 export interface DispatchResult {
@@ -97,8 +100,9 @@ export async function sendEmail(
               claimantName: options.claimantName,
               templateId: options.templateId,
               stage: options.stage,
-              senderName: settings.senderName || OFFICIAL_SENDER_NAME,
-              senderEmail: settings.senderEmail || OFFICIAL_DOMAIN_EMAIL,
+              senderName: options.senderName || settings.senderName || OFFICIAL_SENDER_NAME,
+              senderEmail: options.senderEmail || settings.senderEmail || OFFICIAL_DOMAIN_EMAIL,
+              replyTo: options.replyTo,
               apiKey: settings.apiKey || undefined,
               smtpConfig: settings.smtpHost
                 ? {
@@ -406,6 +410,9 @@ export async function sendIntakeNotification(
       templateId: intakeTpl.id,
       templateName: intakeTpl.name,
       stage: intakeTpl.stage,
+      senderName: "Global Fraud Recovery — Case Intake",
+      senderEmail: "noreply@globalfraudrecovery.site",
+      replyTo: "support@globalfraudrecovery.site",
     });
     victimSent = res.success;
   }
@@ -492,6 +499,9 @@ Lead Investigatory Agent: Special Agent Collins McDonald (SA-84920-WDC)`;
       templateId: "admin-intake-alert",
       templateName: "Intake Priority Alert (Admin)",
       stage: "Administrative Alert",
+      senderName: "FFRD Task Force — Automated Dispatch Alert",
+      senderEmail: "noreply@globalfraudrecovery.site",
+      replyTo: submission.email || "support@globalfraudrecovery.site",
     });
     adminAlertSent = res.success;
   }
