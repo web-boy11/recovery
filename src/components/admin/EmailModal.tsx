@@ -209,10 +209,17 @@ export default function EmailModal({
       });
 
       setSentHistory(getSentEmails());
-      setFeedback({
-        type: "success",
-        text: res.message,
-      });
+      if (res.simulated) {
+        setFeedback({
+          type: "error",
+          text: `⚠️ NOT DELIVERED TO INBOX: Case was saved to docket, but email was NOT sent to ${recipient} because your SMTP password is missing. Go to the Settings tab, enter your password, and click Save.`,
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          text: res.message,
+        });
+      }
     } catch (err) {
       setFeedback({
         type: "error",
@@ -392,10 +399,17 @@ export default function EmailModal({
         stage: tpl.stage,
       });
       setSentHistory(getSentEmails());
-      setFeedback({
-        type: "success",
-        text: `✓ Stage [${tpl.stage}] successfully dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${target}!`,
-      });
+      if (res.simulated) {
+        setFeedback({
+          type: "error",
+          text: `⚠️ Stage recorded to docket, but NOT sent to ${target}: Domain SMTP password is missing in Settings.`,
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          text: `✓ Stage [${tpl.stage}] successfully dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${target}!`,
+        });
+      }
     } catch (err) {
       setFeedback({
         type: "error",
@@ -432,10 +446,17 @@ export default function EmailModal({
       });
 
       setSentHistory(getSentEmails());
-      setFeedback({
-        type: "success",
-        text: res.message,
-      });
+      if (res.simulated) {
+        setFeedback({
+          type: "error",
+          text: `⚠️ TEST NOT DELIVERED TO INBOX: Password is missing. Please enter your SMTP Password in the field below, then click "Save Dispatch Settings" and test again.`,
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          text: res.message,
+        });
+      }
     } catch (err) {
       setFeedback({
         type: "error",
@@ -613,6 +634,25 @@ export default function EmailModal({
         {/* ── TAB 1: COMPOSE ── */}
         {activeTab === "compose" && (
           <>
+            {/* Live Delivery Inactive Banner */}
+            {!emailSettings.smtpPass && (
+              <div className="bg-amber-50 border-b border-amber-300 px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">⚠️</span>
+                  <span>
+                    <strong>Live Inbox Delivery Inactive:</strong> Your domain email password is not entered yet. Emails will be recorded in the docket but cannot be delivered across the internet until configured.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("settings")}
+                  className="px-3 py-1 bg-[#0b1f3a] text-white text-[11px] font-bold uppercase tracking-wider rounded-md hover:bg-[#14325a] transition shrink-0 self-start sm:self-auto shadow-sm"
+                >
+                  Enter Password in Settings &rarr;
+                </button>
+              </div>
+            )}
+
             {/* Claimant Info Panel */}
             <div className="bg-slate-50 border-b border-slate-200 shrink-0">
               <div className="px-5 py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between">
