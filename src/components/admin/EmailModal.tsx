@@ -399,15 +399,20 @@ export default function EmailModal({
         stage: tpl.stage,
       });
       setSentHistory(getSentEmails());
-      if (res.simulated) {
+      if (!res.success) {
         setFeedback({
           type: "error",
-          text: `⚠️ Stage recorded to docket, but NOT sent to ${target}: Domain SMTP password is missing in Settings.`,
+          text: `❌ Dispatch failed: ${res.message}`,
+        });
+      } else if (res.simulated) {
+        setFeedback({
+          type: "error",
+          text: `⚠️ Stage recorded to docket, but NOT delivered: Server in simulation mode. Check your credentials in Settings.`,
         });
       } else {
         setFeedback({
           type: "success",
-          text: `✓ Stage [${tpl.stage}] successfully dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${target}!`,
+          text: `✓ Stage [${tpl.stage}] successfully dispatched to ${target}! (${res.message})`,
         });
       }
     } catch (err) {
@@ -446,15 +451,20 @@ export default function EmailModal({
       });
 
       setSentHistory(getSentEmails());
-      if (res.simulated) {
+      if (!res.success) {
         setFeedback({
           type: "error",
-          text: `⚠️ TEST NOT DELIVERED TO INBOX: Password is missing. Please enter your SMTP Password in the field below, then click "Save Dispatch Settings" and test again.`,
+          text: `❌ Test Failed: ${res.message}`,
+        });
+      } else if (res.simulated) {
+        setFeedback({
+          type: "error",
+          text: `⚠️ TEST NOT DELIVERED TO INBOX: Server in simulation mode. Check your credentials in Settings.`,
         });
       } else {
         setFeedback({
           type: "success",
-          text: res.message,
+          text: `✓ ${res.message}`,
         });
       }
     } catch (err) {

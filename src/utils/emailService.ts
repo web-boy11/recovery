@@ -112,31 +112,44 @@ export async function sendEmail(
         }
       }
 
-      if (response && response.ok) {
-        const data = await response.json();
-        const record = recordSentEmail({
-          caseRef: options.caseRef,
-          claimantName: options.claimantName,
-          recipientEmail: options.to,
-          templateId: options.templateId,
-          templateName: options.templateName,
-          subject: options.subject,
-          sentMethod: data.provider === "smtp" ? "smtp" : "domain-api",
-          status: data.simulated ? "logged" : "delivered",
-        });
+      if (response) {
+        if (response.ok) {
+          const data = await response.json();
+          const record = recordSentEmail({
+            caseRef: options.caseRef,
+            claimantName: options.claimantName,
+            recipientEmail: options.to,
+            templateId: options.templateId,
+            templateName: options.templateName,
+            subject: options.subject,
+            sentMethod: data.provider === "smtp" ? "smtp" : "domain-api",
+            status: data.simulated ? "logged" : "delivered",
+          });
 
-        return {
-          success: true,
-          method: data.provider === "smtp" ? "smtp" : "domain-api",
-          message: data.simulated
-            ? `Domain transmission queued & recorded under docket ${options.caseRef} (from ${OFFICIAL_DOMAIN_EMAIL})`
-            : `✓ Officially dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${options.to}!`,
-          record,
-          simulated: data.simulated,
-        };
+          return {
+            success: true,
+            method: data.provider === "smtp" ? "smtp" : "domain-api",
+            message: data.message || `✓ Officially dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${options.to}!`,
+            record,
+            simulated: data.simulated,
+          };
+        } else {
+          const errData = await response.json().catch(() => ({ error: `Server returned ${response?.status}: ${response?.statusText || "Endpoint error"}` }));
+          console.error("[Email Engine Error]:", errData);
+          return {
+            success: false,
+            method: "domain-api",
+            message: errData.error || errData.message || `Server dispatch failed (${response.status})`,
+          };
+        }
       }
     } catch (err) {
-      console.warn("Domain serverless dispatch failed, falling back to audit docket:", err);
+      console.warn("Domain serverless dispatch error:", err);
+      return {
+        success: false,
+        method: "domain-api",
+        message: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
