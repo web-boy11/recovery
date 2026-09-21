@@ -94,6 +94,7 @@ export async function sendEmail(
               stage: options.stage,
               senderName: settings.senderName || OFFICIAL_SENDER_NAME,
               senderEmail: settings.senderEmail || OFFICIAL_DOMAIN_EMAIL,
+              apiKey: settings.apiKey || undefined,
               smtpConfig: settings.smtpHost
                 ? {
                     host: settings.smtpHost,

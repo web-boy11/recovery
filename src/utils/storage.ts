@@ -224,6 +224,7 @@ export function deleteSentEmailRecord(id: string): void {
 // ── In-Dashboard Direct Email Service Settings ─────────────────────────
 export interface EmailServiceSettings {
   provider?: "domain-api" | "emailjs" | "webhook" | "direct";
+  apiKey?: string;
   smtpHost?: string;
   smtpPort?: number;
   smtpUser?: string;
@@ -245,6 +246,7 @@ const EMAIL_SETTINGS_KEY = "ffrd_email_settings";
 
 export const DEFAULT_EMAIL_SETTINGS: EmailServiceSettings = {
   provider: "domain-api",
+  apiKey: "",
   senderName: "Special Agent Collins McDonald — FFRD Task Force",
   senderEmail: "collinsmcdonald@globalfraudrecovery.site",
   adminNotificationEmail: "seanjordanw@gmail.com",

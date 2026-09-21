@@ -635,12 +635,12 @@ export default function EmailModal({
         {activeTab === "compose" && (
           <>
             {/* Live Delivery Inactive Banner */}
-            {!emailSettings.smtpPass && (
+            {!emailSettings.smtpPass && !emailSettings.apiKey && (
               <div className="bg-amber-50 border-b border-amber-300 px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900 shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-base">⚠️</span>
                   <span>
-                    <strong>Live Inbox Delivery Inactive:</strong> Your domain email password is not entered yet. Emails will be recorded in the docket but cannot be delivered across the internet until configured.
+                    <strong>Live Inbox Delivery Inactive:</strong> Domain email credentials (SMTP password or API key) are not set. Emails are logged locally only.
                   </span>
                 </div>
                 <button
@@ -1474,6 +1474,27 @@ export default function EmailModal({
                           placeholder="••••••••••••"
                           className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
                         />
+                      </div>
+
+                      <div className="sm:col-span-2 pt-3 border-t border-slate-200">
+                        <label className="block text-slate-800 font-bold mb-1">
+                          OR: Domain API Key (Resend / Brevo / Transactional API)
+                        </label>
+                        <input
+                          type="password"
+                          value={emailSettings.apiKey || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              apiKey: e.target.value,
+                            })
+                          }
+                          placeholder="re_xxxxxxxxxxxxxxxxx (Resend API key) or xkeysib-xxxx (Brevo API key)"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Recommended for <strong>Cloudflare Pages</strong>. Enter your Resend (<code>re_...</code>) or Brevo (<code>xkeysib-...</code>) API key here for guaranteed 100% inbox delivery.
+                        </p>
                       </div>
                     </div>
                   </div>
