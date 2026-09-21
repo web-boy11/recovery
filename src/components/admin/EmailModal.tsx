@@ -209,7 +209,12 @@ export default function EmailModal({
       });
 
       setSentHistory(getSentEmails());
-      if (res.simulated) {
+      if (!res.success) {
+        setFeedback({
+          type: "error",
+          text: `❌ Dispatch failed: ${res.message}`,
+        });
+      } else if (res.simulated) {
         setFeedback({
           type: "error",
           text: `⚠️ NOT DELIVERED TO INBOX: Case was saved to docket, but email was NOT sent to ${recipient} because your SMTP password is missing. Go to the Settings tab, enter your password, and click Save.`,
@@ -1504,6 +1509,27 @@ export default function EmailModal({
                         />
                         <p className="text-[11px] text-slate-500 mt-1">
                           Recommended for <strong>Cloudflare Pages</strong>. Enter your Resend (<code>re_...</code>) or Brevo (<code>xkeysib-...</code>) API key here for guaranteed 100% inbox delivery.
+                        </p>
+                      </div>
+
+                      <div className="sm:col-span-2 pt-3 border-t border-slate-200">
+                        <label className="block text-slate-800 font-bold mb-1">
+                          Optional: Cloudflare Worker / Custom Endpoint URL
+                        </label>
+                        <input
+                          type="url"
+                          value={emailSettings.customApiUrl || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              customApiUrl: e.target.value,
+                            })
+                          }
+                          placeholder="https://recovery-email.your-subdomain.workers.dev"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          If you deployed a standalone Cloudflare Worker for dispatch, enter its URL here. Defaults to <code>/api/send-email</code>.
                         </p>
                       </div>
                     </div>

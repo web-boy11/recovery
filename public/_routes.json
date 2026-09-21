@@ -3,3 +3,4 @@
   "include": ["/api/*", "/.netlify/functions/*"],
   "exclude": []
 }
+

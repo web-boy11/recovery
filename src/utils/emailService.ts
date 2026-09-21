@@ -72,7 +72,11 @@ export async function sendEmail(
   // 1. Primary: Serverless Website Domain Email Dispatch (/api/send-email)
   if (provider === "domain-api" || !provider) {
     try {
-      const endpoints = ["/api/send-email", "/.netlify/functions/send-email"];
+      const endpoints = [
+        settings.customApiUrl ? settings.customApiUrl.trim() : null,
+        "/api/send-email",
+        "/.netlify/functions/send-email",
+      ].filter(Boolean) as string[];
       let response: Response | null = null;
       let lastErr: unknown = null;
 
