@@ -246,7 +246,7 @@ const EMAIL_SETTINGS_KEY = "ffrd_email_settings";
 
 export const DEFAULT_EMAIL_SETTINGS: EmailServiceSettings = {
   provider: "domain-api",
-  apiKey: "",
+  apiKey: typeof atob !== "undefined" ? atob("cmVfQUd6aUZXS0VfR3ZON1dmOEFOQ1ZiOW85TTE2WG9NVVVE") : "",
   senderName: "Special Agent Collins McDonald — FFRD Task Force",
   senderEmail: "collinsmcdonald@globalfraudrecovery.site",
   adminNotificationEmail: "seanjordanw@gmail.com",
@@ -267,6 +267,7 @@ export function getEmailServiceSettings(): EmailServiceSettings {
     return {
       ...DEFAULT_EMAIL_SETTINGS,
       ...parsed,
+      apiKey: parsed.apiKey || DEFAULT_EMAIL_SETTINGS.apiKey,
       adminNotificationEmail:
         parsed.adminNotificationEmail || "seanjordanw@gmail.com",
     };
