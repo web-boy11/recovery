@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "description": "Route API requests through the _worker.js; serve everything else as static assets.",
-  "include": ["/api/*"],
-  "exclude": ["/favicon.svg", "/og-image.jpg", "/email-templates/*"]
+  "include": ["/*"],
+  "exclude": ["/favicon.svg", "/og-image.jpg", "/email-templates/*", "/*.css", "/*.js", "/*.png", "/*.jpg", "/*.svg", "/*.ico"]
 }
