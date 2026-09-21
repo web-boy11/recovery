@@ -8,30 +8,44 @@ import {
   recordSentEmail,
   getSentEmails,
   deleteSentEmailRecord,
+  getEmailServiceSettings,
+  saveEmailServiceSettings,
   type SentEmailRecord,
+  type EmailServiceSettings,
 } from "../../utils/storage";
+import {
+  sendEmail,
+  runTrialAllTemplates,
+  TRIAL_TARGET_EMAIL,
+  OFFICIAL_DOMAIN_EMAIL,
+  OFFICIAL_SENDER_NAME,
+  type TrialRunReport,
+} from "../../utils/emailService";
 import Seal from "../Seal";
 
 interface EmailModalProps {
   submission: Submission | null;
   submissions?: Submission[];
+  initialTab?: "compose" | "trial" | "settings" | "history";
   onClose: () => void;
 }
 
 export default function EmailModal({
   submission,
   submissions = [],
+  initialTab = "compose",
   onClose,
 }: EmailModalProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
     EMAIL_TEMPLATES[0].id
   );
   const [viewMode, setViewMode] = useState<"visual" | "html" | "text">("visual");
-  const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
+  const [activeTab, setActiveTab] = useState<"compose" | "trial" | "settings" | "history">(initialTab);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | "info";
     text: string;
   } | null>(null);
+  const [isSending, setIsSending] = useState<boolean>(false);
 
   // Track which submission is selected in the quick-selector
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>(
@@ -55,8 +69,23 @@ export default function EmailModal({
   });
 
   const [isDetailsCollapsed, setIsDetailsCollapsed] = useState<boolean>(false);
-  const [showSendMenu, setShowSendMenu] = useState<boolean>(false);
   const [sentHistory, setSentHistory] = useState<SentEmailRecord[]>([]);
+
+  // ── Trial Run State ─────────────────────────────────────────────────────
+  const [trialEmail, setTrialEmail] = useState<string>(TRIAL_TARGET_EMAIL);
+  const [trialRunning, setTrialRunning] = useState<boolean>(false);
+  const [trialProgress, setTrialProgress] = useState<{
+    step: number;
+    total: number;
+    templateName: string;
+    status: string;
+  } | null>(null);
+  const [trialReport, setTrialReport] = useState<TrialRunReport | null>(null);
+
+  // ── Email Service Settings State ────────────────────────────────────────
+  const [emailSettings, setEmailSettings] = useState<EmailServiceSettings>(
+    getEmailServiceSettings()
+  );
 
   // Load sent history on mount
   useEffect(() => {
@@ -160,91 +189,42 @@ export default function EmailModal({
     return true;
   }
 
-  // 1. Send via Web Gmail
-  function handleSendGmail() {
+  // 1. Official Website Domain Dispatch
+  async function handleDirectApiSend() {
     if (!validateRecipientEmail()) return;
     const recipient = formData.email.trim();
-    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-      recipient
-    )}&su=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(
-      emailText
-    )}`;
-    window.open(url, "_blank");
+    setIsSending(true);
 
-    recordSentEmail({
-      caseRef: formData.caseRef,
-      claimantName: formData.clientName,
-      recipientEmail: recipient,
-      templateId: currentTemplate.id,
-      templateName: currentTemplate.name,
-      subject: subjectLine,
-      sentMethod: "gmail",
-    });
-    setSentHistory(getSentEmails());
-    setShowSendMenu(false);
-    setFeedback({
-      type: "success",
-      text: `✓ Gmail compose window opened for ${recipient}! Transmission logged in sent history.`,
-    });
+    try {
+      const res = await sendEmail({
+        to: recipient,
+        subject: subjectLine,
+        html: emailHtml,
+        text: emailText,
+        caseRef: formData.caseRef,
+        claimantName: formData.clientName,
+        templateId: currentTemplate.id,
+        templateName: currentTemplate.name,
+        stage: currentTemplate.stage,
+      });
+
+      setSentHistory(getSentEmails());
+      setFeedback({
+        type: "success",
+        text: res.message,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: `Failed to dispatch email from domain: ${String(err)}`,
+      });
+    } finally {
+      setIsSending(false);
+    }
   }
 
-  // 2. Send via Outlook Web
-  function handleSendOutlook() {
-    if (!validateRecipientEmail()) return;
-    const recipient = formData.email.trim();
-    const url = `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(
-      recipient
-    )}&subject=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(
-      emailText
-    )}`;
-    window.open(url, "_blank");
 
-    recordSentEmail({
-      caseRef: formData.caseRef,
-      claimantName: formData.clientName,
-      recipientEmail: recipient,
-      templateId: currentTemplate.id,
-      templateName: currentTemplate.name,
-      subject: subjectLine,
-      sentMethod: "outlook",
-    });
-    setSentHistory(getSentEmails());
-    setShowSendMenu(false);
-    setFeedback({
-      type: "success",
-      text: `✓ Outlook compose window opened for ${recipient}! Transmission logged in sent history.`,
-    });
-  }
-
-  // 3. Send via Default Mail App (Mailto)
-  function handleSendMailto() {
-    if (!validateRecipientEmail()) return;
-    const recipient = formData.email.trim();
-    const mailtoUrl = `mailto:${encodeURIComponent(
-      recipient
-    )}?subject=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(
-      emailText
-    )}`;
-    window.location.href = mailtoUrl;
-
-    recordSentEmail({
-      caseRef: formData.caseRef,
-      claimantName: formData.clientName,
-      recipientEmail: recipient,
-      templateId: currentTemplate.id,
-      templateName: currentTemplate.name,
-      subject: subjectLine,
-      sentMethod: "mailto",
-    });
-    setSentHistory(getSentEmails());
-    setShowSendMenu(false);
-    setFeedback({
-      type: "success",
-      text: `✓ System email client opened for ${recipient}! Transmission logged in sent history.`,
-    });
-  }
-
-  // 4. Copy Formatted Rich Visual Email (Paste directly into Gmail/Outlook)
+  // 2. Copy Formatted Rich Visual Email (Paste directly into an email composer)
   async function handleCopyFormattedVisual() {
     try {
       if (navigator.clipboard && window.ClipboardItem) {
@@ -269,10 +249,9 @@ export default function EmailModal({
         sentMethod: "clipboard",
       });
       setSentHistory(getSentEmails());
-      setShowSendMenu(false);
       setFeedback({
         type: "success",
-        text: "✓ Rich formatted email copied! In Gmail or Outlook, press Ctrl+V to paste the full FBI design with official seal and colors.",
+        text: "✓ Rich formatted email copied! Press Ctrl+V in your composer to paste the full design with official seal, header, and typography.",
       });
     } catch {
       await navigator.clipboard.writeText(emailHtml);
@@ -283,7 +262,7 @@ export default function EmailModal({
     }
   }
 
-  // 5. Mark as Sent manually
+  // 6. Mark as Sent manually
   function handleMarkAsSent() {
     if (!validateRecipientEmail()) return;
     const recipient = formData.email.trim();
@@ -337,6 +316,182 @@ export default function EmailModal({
     setSentHistory(getSentEmails());
   }
 
+  // ── Execute Trial Sequence for seanjordanw@gmail.com ───────────────────
+  async function handleExecuteTrial() {
+    const target = trialEmail.trim();
+    if (!target) {
+      setFeedback({
+        type: "error",
+        text: "Please enter a valid target email address for the trial run.",
+      });
+      return;
+    }
+
+    setTrialRunning(true);
+    setTrialProgress({
+      step: 0,
+      total: EMAIL_TEMPLATES.length,
+      templateName: "Initializing Trial Run...",
+      status: "starting",
+    });
+
+    try {
+      const report = await runTrialAllTemplates(target, (step, total, name, status) => {
+        setTrialProgress({ step, total, templateName: name, status });
+      });
+
+      setTrialReport(report);
+      setSentHistory(getSentEmails());
+      setFeedback({
+        type: "success",
+        text: `✓ All 7 trial emails successfully executed and logged for ${target}!`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: `Trial dispatch encountered an issue: ${String(err)}`,
+      });
+    } finally {
+      setTrialRunning(false);
+    }
+  }
+
+  // Dispatch a single stage from the official domain
+  async function handleDispatchSingleStage(tplId: string) {
+    const target = trialEmail.trim() || TRIAL_TARGET_EMAIL;
+    const tpl = EMAIL_TEMPLATES.find((t) => t.id === tplId) || EMAIL_TEMPLATES[0];
+    const sampleCase: EmailTemplateData = {
+      caseRef: "FFRD-2025-918234",
+      clientName: "Sean Jordan",
+      email: target,
+      phone: "+1 (917) 487-6372",
+      fraudType: "Cryptocurrency / Digital Asset Fraud & Foreign Wire Extraction",
+      lossAmount: "$185,000.00 USD",
+      dateReported: new Date().toISOString().slice(0, 10),
+      agentName: "Special Agent Collins McDonald",
+      agentBadge: "SA-84920-WDC",
+      actionUrl: "https://globalfraudrecovery.site/#report",
+    };
+
+    setIsSending(true);
+    setFeedback({
+      type: "info",
+      text: `Dispatching ${tpl.name} to ${target}...`,
+    });
+
+    try {
+      const res = await sendEmail({
+        to: target,
+        subject: tpl.subject(sampleCase),
+        html: tpl.generateHtml(sampleCase),
+        text: tpl.generateText(sampleCase),
+        caseRef: sampleCase.caseRef,
+        claimantName: sampleCase.clientName,
+        templateId: tpl.id,
+        templateName: tpl.name,
+        stage: tpl.stage,
+      });
+      setSentHistory(getSentEmails());
+      setFeedback({
+        type: "success",
+        text: `✓ Stage [${tpl.stage}] successfully dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${target}!`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: `Failed to dispatch stage: ${String(err)}`,
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  // Test Domain Connection
+  async function handleTestDomainConnection() {
+    setIsSending(true);
+    setFeedback({
+      type: "info",
+      text: `Testing domain outbound delivery from ${emailSettings.senderEmail || OFFICIAL_DOMAIN_EMAIL}...`,
+    });
+
+    try {
+      const res = await sendEmail({
+        to: emailSettings.adminNotificationEmail || TRIAL_TARGET_EMAIL,
+        subject: "Task Force Domain Mail Delivery Verification Test",
+        html: `<div style="font-family: sans-serif; padding: 20px; color: #0b1f3a;">
+          <h2 style="color: #0b1f3a; border-bottom: 2px solid #c9a227; padding-bottom: 8px;">Domain Dispatch System Online</h2>
+          <p>This is an official automated test transmission from <strong>${emailSettings.senderEmail || OFFICIAL_DOMAIN_EMAIL}</strong> to verify that outbound domain email routing is operational.</p>
+          <p style="font-size: 12px; color: #64748b;">Dispatched via FFRD Serverless Relay Engine.</p>
+        </div>`,
+        text: `Domain Dispatch System Online\nThis is an official automated test transmission from ${emailSettings.senderEmail || OFFICIAL_DOMAIN_EMAIL} to verify that outbound domain email routing is operational.`,
+        caseRef: "TEST-DIAG-01",
+        claimantName: "System Diagnostics",
+        templateId: "system-test",
+        templateName: "System Diagnostics Test",
+        stage: "Diagnostic",
+      });
+
+      setSentHistory(getSentEmails());
+      setFeedback({
+        type: "success",
+        text: res.message,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: `Domain connection test error: ${String(err)}`,
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+
+  // Download all 7 HTML files bundle
+  function handleDownloadTrialBundle() {
+    const target = trialEmail.trim() || TRIAL_TARGET_EMAIL;
+    const sampleCase: EmailTemplateData = {
+      caseRef: "FFRD-2025-918234",
+      clientName: "Sean Jordan",
+      email: target,
+      phone: "+1 (917) 487-6372",
+      fraudType: "Cryptocurrency / Digital Asset Fraud & Foreign Wire Extraction",
+      lossAmount: "$185,000.00 USD",
+      dateReported: new Date().toISOString().slice(0, 10),
+      agentName: "Special Agent Collins McDonald",
+      agentBadge: "SA-84920-WDC",
+      actionUrl: "https://globalfraudrecovery.site/#report",
+    };
+
+    EMAIL_TEMPLATES.forEach((tpl, idx) => {
+      setTimeout(() => {
+        const html = tpl.generateHtml(sampleCase);
+        const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Trial-${idx + 1}-${tpl.id}-${target.replace(/[@.]/g, "_")}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }, idx * 150);
+    });
+
+    setFeedback({
+      type: "info",
+      text: `✓ Triggered download of all 7 trial HTML files for ${target}`,
+    });
+  }
+
+  // Save Email Settings
+  function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    saveEmailServiceSettings(emailSettings);
+    setFeedback({
+      type: "success",
+      text: "✓ Email delivery and task force alert settings saved successfully!",
+    });
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-sm"
@@ -353,16 +508,16 @@ export default function EmailModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base md:text-lg font-bold text-white font-serif tracking-wide">
-                  Case Update Communications Center
+                  Case Communications &amp; Email Dispatch Center
                 </h3>
                 <span className="bg-[#c9a227] text-[#0b1f3a] text-[10px] font-extrabold uppercase px-2 py-0.5 rounded">
-                  {EMAIL_TEMPLATES.length} TEMPLATES
+                  {EMAIL_TEMPLATES.length} STAGES
                 </span>
               </div>
               <p className="text-xs text-white/70">
-                Official DOJ/FBI Client Status Notifications &bull; Recipient:{" "}
+                Official Law Enforcement Electronic Relay &bull; Trial Target:{" "}
                 <span className="text-[#f5d76e] font-semibold font-mono">
-                  {formData.email || "(No email entered yet)"}
+                  {TRIAL_TARGET_EMAIL}
                 </span>
               </p>
             </div>
@@ -382,6 +537,16 @@ export default function EmailModal({
                 ✉️ Compose
               </button>
               <button
+                onClick={() => setActiveTab("trial")}
+                className={`px-3 py-1.5 rounded-md transition flex items-center gap-1 ${
+                  activeTab === "trial"
+                    ? "bg-[#c9a227] text-[#0b1f3a] shadow-sm font-bold"
+                    : "text-amber-300 hover:text-white bg-amber-400/20"
+                }`}
+              >
+                🚀 Trial (7 Stages)
+              </button>
+              <button
                 onClick={() => setActiveTab("history")}
                 className={`px-3 py-1.5 rounded-md transition flex items-center gap-1 ${
                   activeTab === "history"
@@ -395,6 +560,17 @@ export default function EmailModal({
                     {sentHistory.length}
                   </span>
                 )}
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`px-2.5 py-1.5 rounded-md transition flex items-center gap-1 ${
+                  activeTab === "settings"
+                    ? "bg-[#c9a227] text-[#0b1f3a] shadow-sm font-bold"
+                    : "text-white/80 hover:text-white"
+                }`}
+                title="Delivery Settings"
+              >
+                ⚙️ Settings
               </button>
             </div>
 
@@ -434,10 +610,10 @@ export default function EmailModal({
           </div>
         )}
 
-        {/* ── Main Tab: COMPOSE ── */}
+        {/* ── TAB 1: COMPOSE ── */}
         {activeTab === "compose" && (
           <>
-            {/* ── RECIPIENT & CLAIMANT INPUT PANEL (Prominently Displayed) ── */}
+            {/* Claimant Info Panel */}
             <div className="bg-slate-50 border-b border-slate-200 shrink-0">
               <div className="px-5 py-2.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -446,7 +622,7 @@ export default function EmailModal({
                     Claimant &amp; Recipient Information
                   </h4>
                   <span className="text-[11px] text-slate-500 hidden sm:inline">
-                    (Enter or edit claimant details below)
+                    (Target Case &amp; Recipient Details)
                   </span>
                 </div>
 
@@ -477,7 +653,7 @@ export default function EmailModal({
                     onClick={() => setIsDetailsCollapsed(!isDetailsCollapsed)}
                     className="text-xs font-semibold text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-50 transition flex items-center gap-1"
                   >
-                    {isDetailsCollapsed ? "▼ Show Details Form" : "▲ Collapse"}
+                    {isDetailsCollapsed ? "▼ Show Form" : "▲ Collapse"}
                   </button>
                 </div>
               </div>
@@ -500,16 +676,26 @@ export default function EmailModal({
                         </span>
                       )}
                     </div>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      placeholder="e.g. claimant.victim@domain.com"
-                      required
-                      className="w-full px-3 py-2 border-2 border-blue-300 focus:border-[#0b1f3a] rounded bg-white text-slate-900 font-mono text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: e.target.value })
+                        }
+                        placeholder="e.g. claimant.victim@domain.com"
+                        required
+                        className="flex-1 px-3 py-2 border-2 border-blue-300 focus:border-[#0b1f3a] rounded bg-white text-slate-900 font-mono text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, email: TRIAL_TARGET_EMAIL })}
+                        className="px-2.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold shrink-0 transition"
+                        title="Set to trial recipient"
+                      >
+                        Set to {TRIAL_TARGET_EMAIL}
+                      </button>
+                    </div>
                     {!formData.email.trim() && (
                       <p className="mt-1 text-[11px] text-red-600 font-medium">
                         ⚠️ Please type the claimant&apos;s email address to send them this update.
@@ -613,7 +799,7 @@ export default function EmailModal({
               )}
             </div>
 
-            {/* ── Subheader / Stage Selector & Mode Bar ── */}
+            {/* Template Selector Bar */}
             <div className="px-5 py-2.5 bg-slate-100 border-b border-slate-200 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
               <div className="flex items-center gap-2 flex-1">
                 <span className="text-xs font-bold text-[#0b1f3a] uppercase tracking-wider whitespace-nowrap">
@@ -667,7 +853,7 @@ export default function EmailModal({
               </div>
             </div>
 
-            {/* ── Subject & Target Line Banner ── */}
+            {/* Subject Banner */}
             <div className="px-5 py-2 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center justify-between gap-3 text-xs">
               <div className="truncate flex items-center gap-2">
                 <span className="font-bold text-slate-500 uppercase tracking-wider shrink-0">
@@ -692,7 +878,7 @@ export default function EmailModal({
               </button>
             </div>
 
-            {/* ── Content View Area ── */}
+            {/* Content View Area */}
             <div className="flex-1 overflow-hidden bg-slate-200/70 p-2 sm:p-4">
               {viewMode === "visual" && (
                 <div className="w-full h-full bg-white rounded-xl shadow-inner overflow-hidden border border-slate-300">
@@ -717,7 +903,7 @@ export default function EmailModal({
               )}
             </div>
 
-            {/* ── Modal Footer Controls & Send Action Center ── */}
+            {/* Modal Footer Controls */}
             <div className="px-5 py-3 bg-white border-t border-slate-200 shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs text-slate-500">
                 <span className="font-bold text-slate-700">
@@ -733,7 +919,6 @@ export default function EmailModal({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Secondary tools */}
                 <button
                   onClick={handleOpenNewTab}
                   className="px-2.5 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition"
@@ -751,14 +936,13 @@ export default function EmailModal({
                 <button
                   onClick={() => handleCopyText(emailText, "Plain Text Body")}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
-                  title="Copy plain text message"
                 >
                   📋 Copy Text
                 </button>
                 <button
                   onClick={handleCopyFormattedVisual}
                   className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-bold rounded-lg border border-blue-200 transition flex items-center gap-1.5"
-                  title="Copy formatted email to paste directly into Gmail or Outlook"
+                  title="Copy formatted email to paste directly into your email client"
                 >
                   <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -766,73 +950,682 @@ export default function EmailModal({
                   Copy Formatted (Ctrl+V)
                 </button>
 
-                {/* Primary SEND Button with Quick Options */}
-                <div className="relative">
-                  <div className="inline-flex rounded-lg shadow">
-                    <button
-                      onClick={handleSendGmail}
-                      className="px-4 py-2 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs font-bold uppercase tracking-wider rounded-l-lg border-r border-[#14325a] flex items-center gap-1.5 transition"
-                      title="Open in Gmail compose addressed to claimant"
-                    >
-                      <span className="text-[#f5d76e]">✉️</span>
-                      Send via Gmail
-                    </button>
-                    <button
-                      onClick={() => setShowSendMenu(!showSendMenu)}
-                      className="px-2 py-2 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs rounded-r-lg border-l border-white/10 transition"
-                      title="More sending methods"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
+                {/* Mark Sent in Docket Button */}
+                <button
+                  onClick={handleMarkAsSent}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
+                  title="Mark as sent in case docket audit log without network transmission"
+                >
+                  ✓ Mark Sent in Docket
+                </button>
 
-                  {/* Send Options Dropdown Menu */}
-                  {showSendMenu && (
-                    <div className="absolute right-0 bottom-full mb-2 w-64 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-2 text-xs">
-                      <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                        Dispatch To: {formData.email || "(Enter email above)"}
-                      </div>
-
-                      <button
-                        onClick={handleSendGmail}
-                        className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 text-slate-800 font-semibold transition"
-                      >
-                        <span className="text-red-500 font-bold">G</span> Send via Web Gmail
-                      </button>
-
-                      <button
-                        onClick={handleSendOutlook}
-                        className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 text-slate-800 font-semibold transition"
-                      >
-                        <span className="text-blue-500 font-bold">O</span> Send via Outlook / Hotmail
-                      </button>
-
-                      <button
-                        onClick={handleSendMailto}
-                        className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg flex items-center gap-2 text-slate-800 font-semibold transition"
-                      >
-                        <span className="text-slate-600 font-bold">✉</span> Send via Default Mail App (Mailto)
-                      </button>
-
-                      <div className="border-t border-slate-100 my-1"></div>
-
-                      <button
-                        onClick={handleMarkAsSent}
-                        className="w-full text-left px-3 py-2 hover:bg-emerald-50 rounded-lg flex items-center gap-2 text-emerald-800 font-semibold transition"
-                      >
-                        <span>✓</span> Mark as Sent in Audit Log
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* Official Website Domain Dispatch Button */}
+                <button
+                  onClick={handleDirectApiSend}
+                  disabled={isSending}
+                  className="px-4 py-2 bg-gradient-to-r from-[#0b1f3a] via-[#14325a] to-[#0b1f3a] hover:from-[#14325a] hover:to-[#0b1f3a] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-md border border-[#c9a227] flex items-center gap-2 transition transform active:scale-95 disabled:opacity-50"
+                  title="Dispatch official transmission directly from collinsmcdonald@globalfraudrecovery.site"
+                >
+                  <span className="text-[#f5d76e]">{isSending ? "⏳" : "⚡"}</span>
+                  <span>{isSending ? "Dispatching..." : "Dispatch Domain Email"}</span>
+                  <span className="text-[10px] text-[#f5d76e] font-mono hidden sm:inline">
+                    (@globalfraudrecovery.site)
+                  </span>
+                </button>
               </div>
             </div>
           </>
         )}
 
-        {/* ── Main Tab: SENT AUDIT LOG ── */}
+        {/* ── TAB 2: TRIAL RUN (7 STAGES) ── */}
+        {activeTab === "trial" && (
+          <div className="flex-1 overflow-auto p-5 bg-slate-50 flex flex-col gap-5">
+            <div className="max-w-4xl mx-auto w-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-5 bg-[#0b1f3a] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[#c9a227]">
+                <div>
+                  <div className="inline-flex items-center gap-2 bg-[#c9a227]/20 border border-[#c9a227] px-2.5 py-0.5 rounded text-[11px] font-bold text-[#f5d76e] uppercase tracking-wider mb-1">
+                    🚀 Live 7-Stage Trial Engine
+                  </div>
+                  <h4 className="font-serif font-bold text-lg text-white">
+                    Execute Trial Sequence &bull; All 7 Case Templates
+                  </h4>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Transmits complete investigatory milestones in progression to verify template rendering and delivery.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadTrialBundle}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-lg transition"
+                    title="Download all 7 HTML files"
+                  >
+                    ⬇ Download All 7
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Address Card */}
+              <div className="p-6 border-b border-slate-200 bg-amber-50/50">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Trial Recipient Email Address:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        value={trialEmail}
+                        onChange={(e) => setTrialEmail(e.target.value)}
+                        className="flex-1 max-w-md px-3 py-2 text-sm font-mono font-semibold text-[#0b1f3a] bg-white border-2 border-[#c9a227] rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+                        placeholder="e.g. seanjordanw@gmail.com"
+                      />
+                      {trialEmail !== TRIAL_TARGET_EMAIL && (
+                        <button
+                          type="button"
+                          onClick={() => setTrialEmail(TRIAL_TARGET_EMAIL)}
+                          className="text-xs text-blue-700 underline font-semibold px-2 py-1"
+                        >
+                          Reset to {TRIAL_TARGET_EMAIL}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Target: <strong className="text-[#0b1f3a]">{trialEmail}</strong>. Each template will be compiled with case docket <code className="bg-slate-200 px-1 rounded text-slate-800">FFRD-2025-918234</code>, claimant <strong>Sean Jordan</strong>, and loss amount <strong>$185,000.00 USD</strong>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <button
+                      onClick={handleExecuteTrial}
+                      disabled={trialRunning}
+                      className={`px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wider shadow-lg flex items-center gap-2 transition ${
+                        trialRunning
+                          ? "bg-slate-400 text-white cursor-wait"
+                          : "bg-[#0b1f3a] hover:bg-[#14325a] text-white border border-[#c9a227]"
+                      }`}
+                    >
+                      {trialRunning ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Dispatching {trialProgress?.step || 0}/7...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[#c9a227]">⚡</span>
+                          <span>Start 7-Stage Trial Dispatch</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Animated Progress Tracker Bar */}
+                {trialProgress && (
+                  <div className="mt-4 pt-4 border-t border-amber-200/60">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1.5">
+                      <span>
+                        Stage {trialProgress.step} of {trialProgress.total}: {trialProgress.templateName}
+                      </span>
+                      <span className="text-blue-700 font-mono">
+                        {Math.round((trialProgress.step / trialProgress.total) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#0b1f3a] via-[#c9a227] to-[#10b981] transition-all duration-300"
+                        style={{
+                          width: `${(trialProgress.step / trialProgress.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 7 Templates Progression Grid */}
+              <div className="p-6">
+                <h5 className="text-xs font-bold text-[#0b1f3a] uppercase tracking-wider mb-4">
+                  The 7 Official Case Templates in Progression:
+                </h5>
+
+                <div className="space-y-3">
+                  {EMAIL_TEMPLATES.map((tpl, idx) => {
+                    const stepResult = trialReport?.steps.find((s) => s.step === idx + 1);
+                    const isCurrentlyActive = trialProgress?.step === idx + 1;
+                    const sampleCase: EmailTemplateData = {
+                      caseRef: "FFRD-2025-918234",
+                      clientName: "Sean Jordan",
+                      email: trialEmail,
+                      phone: "+1 (917) 487-6372",
+                      fraudType: "Cryptocurrency / Digital Asset Fraud",
+                      lossAmount: "$185,000.00 USD",
+                      dateReported: new Date().toISOString().slice(0, 10),
+                      agentName: "Special Agent Collins McDonald",
+                      agentBadge: "SA-84920-WDC",
+                    };
+                    const subject = tpl.subject(sampleCase);
+
+                    return (
+                      <div
+                        key={tpl.id}
+                        className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                          stepResult
+                            ? "bg-emerald-50/70 border-emerald-300"
+                            : isCurrentlyActive
+                            ? "bg-amber-50 border-[#c9a227] shadow"
+                            : "bg-white border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                              stepResult
+                                ? "bg-emerald-600 text-white"
+                                : isCurrentlyActive
+                                ? "bg-[#c9a227] text-[#0b1f3a] animate-bounce"
+                                : "bg-slate-100 text-slate-600 border border-slate-300"
+                            }`}
+                          >
+                            {stepResult ? "✓" : idx + 1}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                                {tpl.stage}
+                              </span>
+                              <span className="font-bold text-slate-900 text-sm">
+                                {tpl.name}
+                              </span>
+                            </div>
+                            <p className="text-xs font-serif text-[#0b1f3a] font-semibold mt-0.5">
+                              {subject}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {tpl.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action buttons for individual template */}
+                        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                          <button
+                            onClick={() => handleDispatchSingleStage(tpl.id)}
+                            disabled={isSending}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0b1f3a] text-xs font-bold rounded-lg border border-slate-300 transition flex items-center gap-1 disabled:opacity-50"
+                            title="Dispatch this stage directly from official domain"
+                          >
+                            <span className="text-[#c9a227]">⚡</span> Dispatch
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedTemplateId(tpl.id);
+                              setFormData({
+                                ...formData,
+                                clientName: "Sean Jordan",
+                                email: trialEmail,
+                                caseRef: "FFRD-2025-918234",
+                                lossAmount: "$185,000.00 USD",
+                              });
+                              setActiveTab("compose");
+                            }}
+                            className="px-2.5 py-1.5 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs font-bold rounded-lg transition"
+                          >
+                            Preview &rarr;
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 3: EMAIL DELIVERY SETTINGS ── */}
+        {activeTab === "settings" && (
+          <div className="flex-1 overflow-auto p-5 bg-slate-50">
+            <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 bg-[#0b1f3a] text-white flex items-center justify-between border-b-2 border-[#c9a227]">
+                <div>
+                  <h4 className="font-serif font-bold text-base">
+                    Email System &amp; Dispatch Integration Settings
+                  </h4>
+                  <p className="text-xs text-slate-300">
+                    Configure automated law enforcement dispatch, EmailJS, webhooks, and administrative alert routing.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveSettings} className="p-6 space-y-6">
+                {/* Active Provider Selector */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                    Active Delivery Provider
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <label
+                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col gap-1 ${
+                        emailSettings.provider === "domain-api" || !emailSettings.provider
+                          ? "border-[#0b1f3a] bg-blue-50/50 shadow-sm"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="provider"
+                          value="domain-api"
+                          checked={emailSettings.provider === "domain-api" || !emailSettings.provider}
+                          onChange={() =>
+                            setEmailSettings({ ...emailSettings, provider: "domain-api" })
+                          }
+                          className="accent-[#0b1f3a]"
+                        />
+                        <span className="font-bold text-slate-900">Official Website Domain Dispatch</span>
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded">
+                          Recommended
+                        </span>
+                      </div>
+                      <span className="text-slate-500 text-[11px] pl-5">
+                        Dispatches directly from <strong>{OFFICIAL_DOMAIN_EMAIL}</strong> via serverless SMTP/API.
+                      </span>
+                    </label>
+
+                    <label
+                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col gap-1 ${
+                        emailSettings.provider === "webhook"
+                          ? "border-[#0b1f3a] bg-blue-50/50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="provider"
+                          value="webhook"
+                          checked={emailSettings.provider === "webhook"}
+                          onChange={() =>
+                            setEmailSettings({ ...emailSettings, provider: "webhook" })
+                          }
+                          className="accent-[#0b1f3a]"
+                        />
+                        <span className="font-bold text-slate-900">Webhook / REST API</span>
+                      </div>
+                      <span className="text-slate-500 text-[11px] pl-5">
+                        Postmark, Resend, Brevo, Zapier or custom serverless endpoint.
+                      </span>
+                    </label>
+
+                    <label
+                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col gap-1 ${
+                        emailSettings.provider === "direct"
+                          ? "border-[#0b1f3a] bg-blue-50/50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="provider"
+                          value="direct"
+                          checked={emailSettings.provider === "direct"}
+                          onChange={() =>
+                            setEmailSettings({ ...emailSettings, provider: "direct" })
+                          }
+                          className="accent-[#0b1f3a]"
+                        />
+                        <span className="font-bold text-slate-900">Audit Docket Log Only</span>
+                      </div>
+                      <span className="text-slate-500 text-[11px] pl-5">
+                        Records cases to docket without live email transmission.
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Domain Email Credentials Subpanel */}
+                {(emailSettings.provider === "domain-api" || !emailSettings.provider) && (
+                  <div className="p-4 bg-slate-50 rounded-xl border-2 border-slate-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-xs font-bold text-[#0b1f3a] uppercase tracking-wider">
+                          Website Domain Dispatch &amp; SMTP Parameters
+                        </h5>
+                        <p className="text-[11px] text-slate-500">
+                          All outbound emails are sent from your official domain identity: <code className="font-bold text-[#0b1f3a]">{OFFICIAL_DOMAIN_EMAIL}</code>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestDomainConnection}
+                        disabled={isSending}
+                        className="px-3 py-1.5 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs font-bold rounded-lg border border-[#c9a227] shadow transition flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <span>{isSending ? "⏳" : "⚡"}</span>
+                        <span>{isSending ? "Testing..." : "Test Domain Dispatch"}</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          Official Sender Email (Domain)
+                        </label>
+                        <input
+                          type="email"
+                          value={emailSettings.senderEmail || OFFICIAL_DOMAIN_EMAIL}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              senderEmail: e.target.value,
+                            })
+                          }
+                          placeholder={OFFICIAL_DOMAIN_EMAIL}
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          Official Sender Name / Title
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.senderName || OFFICIAL_SENDER_NAME}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              senderName: e.target.value,
+                            })
+                          }
+                          placeholder={OFFICIAL_SENDER_NAME}
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          SMTP Mail Host
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.smtpHost || "mail.globalfraudrecovery.site"}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              smtpHost: e.target.value,
+                            })
+                          }
+                          placeholder="mail.globalfraudrecovery.site"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-600 font-semibold mb-1">
+                            Port
+                          </label>
+                          <input
+                            type="number"
+                            value={emailSettings.smtpPort || 465}
+                            onChange={(e) =>
+                              setEmailSettings({
+                                ...emailSettings,
+                                smtpPort: parseInt(e.target.value, 10) || 465,
+                              })
+                            }
+                            placeholder="465"
+                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                          />
+                        </div>
+                        <div className="flex items-center pt-5">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-700 font-semibold">
+                            <input
+                              type="checkbox"
+                              checked={emailSettings.smtpSecure !== false}
+                              onChange={(e) =>
+                                setEmailSettings({
+                                  ...emailSettings,
+                                  smtpSecure: e.target.checked,
+                                })
+                              }
+                              className="accent-[#0b1f3a] w-3.5 h-3.5 rounded"
+                            />
+                            <span>SSL/TLS (Port 465)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          SMTP Username (Full Email)
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.smtpUser || OFFICIAL_DOMAIN_EMAIL}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              smtpUser: e.target.value,
+                            })
+                          }
+                          placeholder={OFFICIAL_DOMAIN_EMAIL}
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          SMTP Password
+                        </label>
+                        <input
+                          type="password"
+                          value={emailSettings.smtpPass || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              smtpPass: e.target.value,
+                            })
+                          }
+                          placeholder="••••••••••••"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* EmailJS Credentials Subpanel */}
+                {emailSettings.provider === "emailjs" && (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="text-xs font-bold text-[#0b1f3a] uppercase tracking-wider">
+                      EmailJS Configuration Parameters
+                    </h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          Service ID
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.serviceId || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              serviceId: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. service_xxxx"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          Template ID
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.templateId || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              templateId: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. template_xxxx"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          Public Key / User ID
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.publicKey || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              publicKey: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. user_xxxx"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Webhook Configuration Subpanel */}
+                {emailSettings.provider === "webhook" && (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="text-xs font-bold text-[#0b1f3a] uppercase tracking-wider">
+                      Webhook / Endpoint Configuration
+                    </h5>
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          POST Endpoint URL
+                        </label>
+                        <input
+                          type="url"
+                          value={emailSettings.webhookUrl || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              webhookUrl: e.target.value,
+                            })
+                          }
+                          placeholder="https://api.yourdomain.com/send-email or https://hooks.zapier.com/..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-semibold mb-1">
+                          Authorization Header (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={emailSettings.webhookAuthHeader || ""}
+                          onChange={(e) =>
+                            setEmailSettings({
+                              ...emailSettings,
+                              webhookAuthHeader: e.target.value,
+                            })
+                          }
+                          placeholder="Bearer your_secret_token"
+                          className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin & Automated Dispatch Rules */}
+                <div className="border-t border-slate-200 pt-5 space-y-4">
+                  <h5 className="text-xs font-bold text-[#0b1f3a] uppercase tracking-wider">
+                    Administrative Notification Routing
+                  </h5>
+
+                  <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-xs">
+                    <label className="block text-[#0b1f3a] font-bold mb-1">
+                      Lead Investigator / Agency Notification Inbox
+                    </label>
+                    <input
+                      type="email"
+                      value={emailSettings.adminNotificationEmail || TRIAL_TARGET_EMAIL}
+                      onChange={(e) =>
+                        setEmailSettings({
+                          ...emailSettings,
+                          adminNotificationEmail: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-amber-300 rounded bg-white text-slate-900 font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                    />
+                    <p className="text-[11px] text-amber-800 mt-1">
+                      All new victim fraud filings will trigger an immediate priority case dossier forwarded to this address.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={emailSettings.autoSendIntakeEmail !== false}
+                        onChange={(e) =>
+                          setEmailSettings({
+                            ...emailSettings,
+                            autoSendIntakeEmail: e.target.checked,
+                          })
+                        }
+                        className="accent-[#0b1f3a] w-4 h-4 rounded"
+                      />
+                      <span className="text-slate-800 font-medium">
+                        Automatically dispatch <strong>Stage 0 Case Intake Docket</strong> receipt to claimant upon form submission.
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={emailSettings.autoAlertAdmin !== false}
+                        onChange={(e) =>
+                          setEmailSettings({
+                            ...emailSettings,
+                            autoAlertAdmin: e.target.checked,
+                          })
+                        }
+                        className="accent-[#0b1f3a] w-4 h-4 rounded"
+                      />
+                      <span className="text-slate-800 font-medium">
+                        Automatically alert Agency Notification Inbox (<strong>{emailSettings.adminNotificationEmail || TRIAL_TARGET_EMAIL}</strong>) on every submission.
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow"
+                  >
+                    Save Dispatch Settings
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 4: SENT AUDIT LOG ── */}
         {activeTab === "history" && (
           <div className="flex-1 overflow-auto p-5 bg-slate-50">
             <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -843,12 +1636,20 @@ export default function EmailModal({
                     Record of all official email updates dispatched to victims and claimants
                   </p>
                 </div>
-                <button
-                  onClick={() => setActiveTab("compose")}
-                  className="px-3 py-1.5 bg-[#c9a227] text-[#0b1f3a] font-bold text-xs rounded-lg shadow hover:bg-[#d6b038] transition"
-                >
-                  + New Email
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab("trial")}
+                    className="px-3 py-1.5 bg-[#c9a227] text-[#0b1f3a] font-bold text-xs rounded-lg shadow hover:bg-[#d6b038] transition"
+                  >
+                    🚀 Run 7-Stage Trial
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("compose")}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-lg transition"
+                  >
+                    + Compose
+                  </button>
+                </div>
               </div>
 
               {sentHistory.length === 0 ? (

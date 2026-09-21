@@ -8,6 +8,7 @@ import {
 } from "../utils/storage";
 import { useLanguage } from "../context/LanguageContext";
 import { WhatsAppBadge, OFFICIAL_PHONE, WHATSAPP_URL } from "./WhatsAppBadge";
+import { sendIntakeNotification } from "../utils/emailService";
 
 const paymentOptions = [
   "Bank Wire (SWIFT / Fedwire)",
@@ -78,6 +79,7 @@ export default function ReportForm() {
   const [submitted, setSubmitted] = useState(false);
   const [caseRef, setCaseRef] = useState("");
   const [restored, setRestored] = useState(false);
+  const [emailDispatched, setEmailDispatched] = useState(false);
 
   // Restore draft on mount
   useEffect(() => {
@@ -143,6 +145,13 @@ export default function ReportForm() {
     setCaseRef(result.caseRef);
     setSubmitted(true);
     clearFormDraft();
+
+    // Wire up automated intake dispatch: sends receipt to victim and alert to seanjordanw@gmail.com
+    sendIntakeNotification(result).then((res) => {
+      if (res.victimSent || res.adminAlertSent) {
+        setEmailDispatched(true);
+      }
+    });
   };
 
   return (
@@ -224,6 +233,14 @@ export default function ReportForm() {
                 <p className="text-sm text-emerald-800">
                   {t.report.successDesc.replace("{caseRef}", caseRef)}
                 </p>
+                <div className="mt-4 inline-flex items-center gap-2 bg-emerald-100 border border-emerald-300 text-emerald-900 px-4 py-2 rounded-full text-xs font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                  <span>
+                    {emailDispatched
+                      ? "Official Electronic Docket Receipt Dispatched & Registered"
+                      : "Official Intake Notice Queued & Transmitted"}
+                  </span>
+                </div>
               </div>
             ) : (
               <form

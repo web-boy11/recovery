@@ -180,8 +180,15 @@ export interface SentEmailRecord {
   templateId: string;
   templateName: string;
   subject: string;
-  sentMethod: "gmail" | "outlook" | "mailto" | "direct" | "clipboard";
+  sentMethod:
+    | "domain-api"
+    | "smtp"
+    | "emailjs"
+    | "webhook"
+    | "direct"
+    | "clipboard";
   sentAt: string;
+  status?: "delivered" | "queued" | "failed" | "logged";
 }
 
 const SENT_EMAILS_KEY = "ffrd_sent_emails";
@@ -216,31 +223,58 @@ export function deleteSentEmailRecord(id: string): void {
 
 // ── In-Dashboard Direct Email Service Settings ─────────────────────────
 export interface EmailServiceSettings {
+  provider?: "domain-api" | "emailjs" | "webhook" | "direct";
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  smtpSecure?: boolean;
   serviceId?: string;
   templateId?: string;
   publicKey?: string;
+  webhookUrl?: string;
+  webhookAuthHeader?: string;
   senderName?: string;
   senderEmail?: string;
+  adminNotificationEmail?: string;
+  autoSendIntakeEmail?: boolean;
+  autoAlertAdmin?: boolean;
 }
 
 const EMAIL_SETTINGS_KEY = "ffrd_email_settings";
 
+export const DEFAULT_EMAIL_SETTINGS: EmailServiceSettings = {
+  provider: "domain-api",
+  senderName: "Special Agent Collins McDonald — FFRD Task Force",
+  senderEmail: "collinsmcdonald@globalfraudrecovery.site",
+  adminNotificationEmail: "seanjordanw@gmail.com",
+  smtpHost: "mail.globalfraudrecovery.site",
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUser: "collinsmcdonald@globalfraudrecovery.site",
+  smtpPass: "",
+  autoSendIntakeEmail: true,
+  autoAlertAdmin: true,
+};
+
 export function getEmailServiceSettings(): EmailServiceSettings {
   try {
     const raw = localStorage.getItem(EMAIL_SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : {
-      senderName: "Special Agent Collins McDonald — FFRD",
-      senderEmail: "collinsmcdonald@globalfraudrecovery.site",
+    if (!raw) return DEFAULT_EMAIL_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_EMAIL_SETTINGS,
+      ...parsed,
+      adminNotificationEmail:
+        parsed.adminNotificationEmail || "seanjordanw@gmail.com",
     };
   } catch {
-    return {
-      senderName: "Special Agent Collins McDonald — FFRD",
-      senderEmail: "collinsmcdonald@globalfraudrecovery.site",
-    };
+    return DEFAULT_EMAIL_SETTINGS;
   }
 }
 
 export function saveEmailServiceSettings(settings: EmailServiceSettings): void {
   localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(settings));
 }
+
 

@@ -345,6 +345,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [emailSubmission, setEmailSubmission] = useState<Submission | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailModalTab, setEmailModalTab] = useState<"compose" | "trial" | "settings" | "history">("compose");
   const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [openStatusDropdown, setOpenStatusDropdown] = useState<string | null>(null);
@@ -520,6 +521,19 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <button
                 onClick={() => {
                   setEmailSubmission(null);
+                  setEmailModalTab("trial");
+                  setIsEmailModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#0b1f3a] to-[#14325a] hover:from-[#14325a] hover:to-[#0b1f3a] border border-[#c9a227] rounded-lg shadow-sm transition"
+                title="Run full 7-stage trial dispatch to seanjordanw@gmail.com"
+              >
+                <span className="text-[#f5d76e]">🚀</span>
+                <span>Run 7-Email Trial</span>
+              </button>
+              <button
+                onClick={() => {
+                  setEmailSubmission(null);
+                  setEmailModalTab("compose");
                   setIsEmailModalOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-semibold text-[#0b1f3a] bg-[#c9a227]/20 border border-[#c9a227] hover:bg-[#c9a227]/35 rounded-lg transition"
@@ -778,9 +792,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         <EmailModal
           submission={emailSubmission}
           submissions={submissions}
+          initialTab={emailModalTab}
           onClose={() => {
             setIsEmailModalOpen(false);
             setEmailSubmission(null);
+            setEmailModalTab("compose");
           }}
         />
       )}
