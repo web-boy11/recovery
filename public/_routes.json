@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/*"],
-  "exclude": ["/favicon.svg", "/og-image.jpg", "/email-templates/*", "/*.css", "/*.js", "/*.png", "/*.jpg", "/*.svg", "/*.ico"]
+  "include": ["/api/*"],
+  "exclude": []
 }
