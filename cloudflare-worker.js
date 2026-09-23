@@ -1,36 +1,33 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * Standalone Cloudflare Worker: Email Dispatch
+ * Standalone Cloudflare Worker: Email Dispatch & Case Submissions Hub
  * ═══════════════════════════════════════════════════════════════════════════════
  *
- * DEPLOYMENT (for standalone Workers, NOT Pages):
- * 1. Cloudflare Dashboard → "Workers & Pages" → "Create application"
- * 2. Choose "Workers" tab → Click "Create Worker" (Hello World)
- * 3. Click "Deploy" → then click "Edit code"
- * 4. Paste this entire file and click "Deploy"
- * 5. Copy the generated URL (e.g. https://recovery-email.xxxx.workers.dev)
- * 6. Paste it into your website Admin Settings ("Cloudflare Worker / Custom Endpoint URL")
+ * Handles:
+ *   1. /api/send-email  — Official domain email transmission via Resend API
+ *   2. /api/submissions — Case records sync and storage across devices
  *
  * Environment Variables (set in Worker Settings → Variables):
  *   RESEND_API_KEY  — Your Resend API key (re_...)
- *   FROM_EMAIL      — Sender email (default: collinsmcdonald@globalfraudrecovery.site)
- *   FROM_NAME       — Sender display name
- *
- * NOTE: If you are using Cloudflare Pages (not standalone Workers), the email
- * API is already handled by /public/_worker.js. This file is only needed if
- * you deploy a SEPARATE worker for email dispatch.
+ *   FROM_EMAIL      — Default sender email (default: collinsmcdonald@globalfraudrecovery.site)
+ *   FROM_NAME       — Default sender display name
  */
 
 function isValidEmail(email) {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// In-memory cache for submissions when KV namespace is not bound
+let inMemorySubmissions = [];
+
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+      "Access-Control-Allow-Methods": "POST, OPTIONS, GET, PATCH, DELETE",
       "Content-Type": "application/json",
     };
 
@@ -40,19 +37,84 @@ export default {
     }
 
     // 2. Health Check
-    if (request.method === "GET") {
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
       return new Response(
         JSON.stringify({
           status: "operational",
-          service: "Email Dispatch Worker (Standalone)",
-          version: "2.0.0",
+          service: "Email Dispatch & Case Records Hub (Standalone)",
+          version: "2.1.0",
           timestamp: new Date().toISOString(),
         }),
         { status: 200, headers: corsHeaders }
       );
     }
 
-    // 3. Email Dispatch via POST
+    // 3. Submissions API (/api/submissions or /submissions)
+    if (url.pathname === "/api/submissions" || url.pathname === "/submissions") {
+      // GET: Return all submissions
+      if (request.method === "GET") {
+        try {
+          if (env && env.SUBMISSIONS_KV) {
+            const raw = await env.SUBMISSIONS_KV.get("submissions");
+            const data = raw ? JSON.parse(raw) : [];
+            return new Response(JSON.stringify(data), { status: 200, headers: corsHeaders });
+          }
+          return new Response(JSON.stringify(inMemorySubmissions), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: corsHeaders,
+          });
+        }
+      }
+
+      // POST: Add or update a submission
+      if (request.method === "POST") {
+        try {
+          const submission = await request.json();
+          if (!submission || !submission.caseRef) {
+            return new Response(
+              JSON.stringify({ error: "Missing required submission object or caseRef." }),
+              { status: 400, headers: corsHeaders }
+            );
+          }
+
+          if (env && env.SUBMISSIONS_KV) {
+            const raw = await env.SUBMISSIONS_KV.get("submissions");
+            let list = raw ? JSON.parse(raw) : [];
+            const idx = list.findIndex((s) => s.caseRef === submission.caseRef);
+            if (idx >= 0) {
+              list[idx] = { ...list[idx], ...submission };
+            } else {
+              list.unshift(submission);
+            }
+            await env.SUBMISSIONS_KV.put("submissions", JSON.stringify(list));
+          } else {
+            const idx = inMemorySubmissions.findIndex((s) => s.caseRef === submission.caseRef);
+            if (idx >= 0) {
+              inMemorySubmissions[idx] = { ...inMemorySubmissions[idx], ...submission };
+            } else {
+              inMemorySubmissions.unshift(submission);
+            }
+          }
+
+          return new Response(
+            JSON.stringify({ success: true, caseRef: submission.caseRef }),
+            { status: 200, headers: corsHeaders }
+          );
+        } catch (err) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: corsHeaders,
+          });
+        }
+      }
+    }
+
+    // 4. Email Dispatch via POST (/ or /api/send-email)
     if (request.method === "POST") {
       try {
         const body = await request.json();
@@ -151,7 +213,7 @@ export default {
     }
 
     return new Response(
-      JSON.stringify({ error: "Method not allowed. Use POST." }),
+      JSON.stringify({ error: "Method not allowed." }),
       { status: 405, headers: corsHeaders }
     );
   },

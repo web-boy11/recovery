@@ -4,8 +4,17 @@ import {
   updateSubmissionStatus,
   deleteSubmission,
   exportSubmissionsCsv,
+  advanceSubmissionStage,
+  toggleAutoEmail,
+  isStageEmailOverdue,
+  syncSubmissionsWithRemote,
+  STAGE_MILESTONES,
   type Submission,
 } from "../../utils/storage";
+import {
+  sendStageEmail,
+  processDueStageEmails,
+} from "../../utils/emailService";
 import EmailModal from "./EmailModal";
 
 interface AdminDashboardProps {
@@ -39,61 +48,68 @@ const STATUS_CONFIG: Record<
 
 const ALL_STATUSES: Submission["status"][] = ["new", "under-review", "resolved"];
 
-// ── Detail Modal ───────────────────────────────────────────────────────
+// ── Detail Modal with 7-Stage Tracker & Communications Docket ─────────
 function DetailModal({
   submission,
   onClose,
   onOpenEmail,
+  onAdvanceStage,
 }: {
   submission: Submission;
   onClose: () => void;
   onOpenEmail: (s: Submission) => void;
+  onAdvanceStage: (s: Submission) => void;
 }) {
   const s = submission;
+  const currentStageIdx = s.currentStageIndex ?? 0;
+  const isOverdue = isStageEmailOverdue(s);
+  const nextStage = STAGE_MILESTONES[currentStageIdx + 1];
 
   const fields: { label: string; value: string }[] = [
     { label: "Case Reference", value: s.caseRef },
     { label: "Full Name", value: s.fullName },
     { label: "Date of Birth", value: s.dob },
-    { label: "Email", value: s.email },
-    { label: "Phone", value: s.phone },
-    { label: "Country", value: s.country || "United States" },
-    { label: "City / State", value: s.cityState },
+    { label: "Email Address", value: s.email },
+    { label: "Phone Number", value: s.phone },
+    { label: "Country / Location", value: `${s.country || "United States"} / ${s.cityState}` },
     { label: "SSN (last 4)", value: s.ssn4 ? `••••${s.ssn4}` : "N/A" },
-    { label: "Fraud Type", value: s.fraudType },
-    { label: "Estimated Loss", value: s.lossRange },
+    { label: "Fraud Classification", value: s.fraudType },
+    { label: "Reported Loss Amount", value: s.lossRange },
     { label: "Date Discovered", value: s.dateDiscovered },
-    { label: "Date of Initial Transfer", value: s.dateInitialTransfer || "N/A" },
+    { label: "Initial Transfer Date", value: s.dateInitialTransfer || "N/A" },
     {
-      label: "Payment Methods",
+      label: "Payment / Transfer Methods",
       value: (s.paymentMethods ?? []).join(", ") || "N/A",
     },
-    { label: "Transaction IDs", value: s.transactionIds || "N/A" },
-    { label: "Preferred Contact", value: s.contactMethod },
-    { label: "Status", value: STATUS_CONFIG[s.status].label },
+    { label: "Transaction IDs / Hashes", value: s.transactionIds || "N/A" },
+    { label: "Preferred Contact Channel", value: s.contactMethod },
+    { label: "Investigation Status", value: STATUS_CONFIG[s.status]?.label || s.status },
     {
-      label: "Submitted",
+      label: "Initial Filing Timestamp",
       value: new Date(s.submittedAt).toLocaleString(),
     },
   ];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col border border-slate-700/40"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal header */}
-        <div className="px-6 py-4 bg-[#0b1f3a] flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-[#0b1f3a] text-white flex items-center justify-between shrink-0 border-b-2 border-[#c9a227]">
           <div>
-            <h3 className="text-lg font-bold text-white font-serif">
-              Submission Detail
-            </h3>
-            <p className="text-xs text-[#c9a227] tracking-wider mt-0.5">
-              {s.caseRef}
+            <div className="flex items-center gap-2">
+              <span className="text-[#c9a227] text-lg font-serif font-bold">CASE DOCKET:</span>
+              <h3 className="text-lg font-mono font-bold text-white tracking-wider">
+                {s.caseRef}
+              </h3>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Claimant: <strong className="text-white">{s.fullName}</strong> ({s.email})
             </p>
           </div>
           <button
@@ -108,43 +124,163 @@ function DetailModal({
         </div>
 
         {/* Modal body */}
-        <div className="overflow-y-auto flex-1 p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {fields.map((f) => (
-              <div key={f.label} className={f.label === "Transaction IDs" ? "sm:col-span-2" : ""}>
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
-                  {f.label}
-                </p>
-                <p className="text-sm text-slate-800 break-words">{f.value || "—"}</p>
+        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+          {/* 7-Step Interactive Visual Progression Bar */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0b1f3a]">
+                Investigation &amp; Recovery Stage Timeline
+              </span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#0b1f3a] text-[#f5d76e]">
+                Stage {currentStageIdx + 1} of 7: {STAGE_MILESTONES[currentStageIdx]?.label}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5">
+              {STAGE_MILESTONES.map((milestone) => {
+                const isPassed = milestone.index < currentStageIdx;
+                const isCurrent = milestone.index === currentStageIdx;
+                return (
+                  <div key={milestone.id} className="flex flex-col items-center text-center">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                        isPassed
+                          ? "bg-emerald-600 text-white"
+                          : isCurrent
+                          ? "bg-[#0b1f3a] text-[#f5d76e] ring-2 ring-[#c9a227] shadow"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {isPassed ? "✓" : milestone.index + 1}
+                    </div>
+                    <span
+                      className={`text-[9px] mt-1 line-clamp-1 ${
+                        isCurrent
+                          ? "font-bold text-[#0b1f3a]"
+                          : isPassed
+                          ? "text-emerald-700 font-semibold"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {milestone.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Next Email Status & Overdue Alert */}
+            <div className="mt-4 pt-3 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div>
+                <span className="text-slate-500 font-semibold">Next Scheduled Follow-Up: </span>
+                {nextStage ? (
+                  <span className="font-bold text-slate-800">
+                    {nextStage.name} (
+                    {s.nextEmailDueAt
+                      ? new Date(s.nextEmailDueAt).toLocaleString()
+                      : "Schedule pending"}
+                    )
+                  </span>
+                ) : (
+                  <span className="text-emerald-700 font-bold">✓ Case Final Stage Completed</span>
+                )}
               </div>
-            ))}
+
+              {isOverdue && nextStage && (
+                <span className="inline-flex items-center gap-1 text-red-700 font-bold bg-red-100 px-2 py-0.5 rounded-full text-[11px] animate-pulse">
+                  ⚠️ 24h Milestone Overdue — Stage {nextStage.index + 1} Due Now!
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Narrative */}
-          <div className="mt-5">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              Narrative / Description
-            </p>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+          {/* Core Case Details Grid */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+              Filing Credentials &amp; Transaction Details
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+              {fields.map((f) => (
+                <div key={f.label} className={f.label === "Transaction IDs / Hashes" ? "sm:col-span-2" : ""}>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                    {f.label}
+                  </p>
+                  <p className="text-xs text-slate-800 font-medium break-words">{f.value || "—"}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Narrative Summary */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+              Victim Narrative / Incident Description
+            </h4>
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
               {s.narrative || "No narrative provided."}
             </div>
           </div>
+
+          {/* Stage Communication Docket History */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+              Official Email Communications Sent to Claimant
+            </h4>
+            {s.stageHistory && s.stageHistory.length > 0 ? (
+              <div className="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200 overflow-hidden text-xs">
+                {s.stageHistory.map((item, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between hover:bg-white transition">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="font-bold text-[#0b1f3a]">{item.stageName}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Delivered to: <span className="font-mono text-blue-700">{item.recipientEmail}</span>
+                        {item.messageId && (
+                          <span className="ml-2 font-mono text-slate-400">ID: {item.messageId}</span>
+                        )}
+                      </p>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      {new Date(item.sentAt).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">No formal stage updates dispatched yet.</p>
+            )}
+          </div>
         </div>
 
-        {/* Modal footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-          <button
-            onClick={() => {
-              onClose();
-              onOpenEmail(s);
-            }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs font-bold uppercase tracking-wider rounded-lg border border-[#c9a227] shadow transition"
-          >
-            📧 Send Update Email
-          </button>
+        {/* Modal footer with action buttons */}
+        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2">
+            {nextStage && (
+              <button
+                onClick={() => onAdvanceStage(s)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-[#0b1f3a] to-[#14325a] hover:from-[#14325a] hover:to-[#0b1f3a] text-white text-xs font-bold uppercase tracking-wider rounded-lg border border-[#c9a227] shadow transition"
+              >
+                <span className="text-[#f5d76e]">⚡</span>
+                <span>Dispatch {nextStage.name} Now</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                onClose();
+                onOpenEmail(s);
+              }}
+              className="inline-flex items-center gap-1 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-lg border border-slate-300 transition"
+            >
+              ✉️ Open in Composer
+            </button>
+          </div>
+
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition"
+            className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition"
           >
             Close
           </button>
@@ -156,8 +292,7 @@ function DetailModal({
 
 // ── Change Credentials Modal ───────────────────────────────────────────
 function ChangeCredentialsModal({ onClose }: { onClose: () => void }) {
-  const currentUsername =
-    localStorage.getItem("ffrd_admin_user") || "admin";
+  const currentUsername = localStorage.getItem("ffrd_admin_user") || "admin";
   const [currentPass, setCurrentPass] = useState("");
   const [newUsername, setNewUsername] = useState(currentUsername);
   const [newPassword, setNewPassword] = useState("");
@@ -179,17 +314,19 @@ function ChangeCredentialsModal({ onClose }: { onClose: () => void }) {
       setError("Username cannot be empty.");
       return;
     }
-    if (newPassword.length < 5) {
-      setError("New password must be at least 5 characters long.");
+    if (newPassword && newPassword.length < 6) {
+      setError("New password must be at least 6 characters.");
       return;
     }
-    if (newPassword !== confirmPassword) {
+    if (newPassword && newPassword !== confirmPassword) {
       setError("New passwords do not match.");
       return;
     }
 
     localStorage.setItem("ffrd_admin_user", newUsername.trim());
-    localStorage.setItem("ffrd_admin_pass", newPassword);
+    if (newPassword) {
+      localStorage.setItem("ffrd_admin_pass", newPassword);
+    }
     setSuccess(true);
     setTimeout(() => {
       onClose();
@@ -202,17 +339,16 @@ function ChangeCredentialsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 bg-[#0b1f3a] text-white flex items-center justify-between border-b-2 border-[#c9a227]">
-          <div>
-            <h3 className="font-serif font-bold text-base">Change Admin Credentials</h3>
-            <p className="text-[11px] text-[#c9a227] mt-0.5">Update your secret login access</p>
-          </div>
+        <div className="px-6 py-4 bg-[#0b1f3a] flex items-center justify-between">
+          <h3 className="text-base font-bold text-white font-serif">
+            Admin Security Credentials
+          </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded text-white/70 hover:text-white"
+            className="p-1 rounded text-white/60 hover:text-white transition"
           >
             ✕
           </button>
@@ -220,84 +356,81 @@ function ChangeCredentialsModal({ onClose }: { onClose: () => void }) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-700">
+            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg font-medium">
               {error}
             </div>
           )}
           {success && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg font-medium">
               ✓ Credentials updated successfully!
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Current Password
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              Current Password *
             </label>
             <input
               type="password"
               value={currentPass}
               onChange={(e) => setCurrentPass(e.target.value)}
-              placeholder="Enter current password (default: admin123)"
               required
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/30"
             />
           </div>
 
-          <div className="border-t border-slate-200 pt-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              New Admin Username
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              Admin Username
             </label>
             <input
               type="text"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
-              required
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              New Password
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              New Password (leave blank to keep current)
             </label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 5 characters"
-              required
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
+              placeholder="At least 6 characters"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/30"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Confirm New Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter new password"
-              required
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]"
-            />
-          </div>
+          {newPassword && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/30"
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#0b1f3a] hover:bg-[#14325a] rounded-lg shadow"
+              className="px-4 py-2 bg-[#0b1f3a] text-white text-xs font-bold rounded-lg hover:bg-[#14325a] transition"
             >
-              Save New Credentials
+              Update Credentials
             </button>
           </div>
         </form>
@@ -306,33 +439,32 @@ function ChangeCredentialsModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Stats Card ─────────────────────────────────────────────────────────
+// ── Stats Card Component ───────────────────────────────────────────────
 function StatsCard({
   label,
   count,
   color,
   icon,
+  subtitle,
 }: {
   label: string;
   count: number;
   color: string;
   icon: React.ReactNode;
+  subtitle?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            {label}
-          </p>
-          <p className="mt-1 text-3xl font-bold text-slate-800">{count}</p>
-        </div>
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
-          style={{ backgroundColor: `${color}18` }}
-        >
-          <div style={{ color }}>{icon}</div>
-        </div>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex items-center gap-4 hover:shadow-md transition">
+      <div
+        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+        style={{ backgroundColor: `${color}15`, color }}
+      >
+        {icon}
+      </div>
+      <div>
+        <p className="text-2xl font-bold font-serif text-slate-800">{count}</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
+        {subtitle && <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -350,28 +482,53 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [openStatusDropdown, setOpenStatusDropdown] = useState<string | null>(null);
 
-  // Load submissions
+  // Batch stage email execution state
+  const [isBatchSending, setIsBatchSending] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+    caseRef: string;
+  } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{
+    type: "success" | "error" | "info";
+    text: string;
+  } | null>(null);
+
+  // Load submissions & remote sync
   const refreshData = useCallback(() => {
     setSubmissions(getSubmissions());
   }, []);
 
   useEffect(() => {
     refreshData();
-    // 1. Listen for cross-tab storage changes
+
+    // Trigger background cloud sync to pull filings across browsers
+    syncSubmissionsWithRemote().then((synced) => {
+      if (synced && synced.length > 0) {
+        setSubmissions(synced);
+      }
+    });
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "ffrd_submissions" || !e.key) {
         refreshData();
       }
     };
     window.addEventListener("storage", handleStorage);
-    // 2. Poll every 2.5 seconds so submissions in same window appear live
-    const timer = setInterval(refreshData, 2500);
+    const timer = setInterval(refreshData, 3000);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
       clearInterval(timer);
     };
   }, [refreshData]);
+
+  // Submissions due for automated stage follow-up
+  const dueSubmissions = useMemo(() => {
+    return submissions.filter(
+      (s) => s.autoEmailEnabled !== false && isStageEmailOverdue(s)
+    );
+  }, [submissions]);
 
   // Filter by search
   const filtered = useMemo(() => {
@@ -381,7 +538,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       (s) =>
         s.fullName.toLowerCase().includes(q) ||
         s.email.toLowerCase().includes(q) ||
-        s.caseRef.toLowerCase().includes(q)
+        s.caseRef.toLowerCase().includes(q) ||
+        (s.currentStageName && s.currentStageName.toLowerCase().includes(q))
     );
   }, [submissions, search]);
 
@@ -391,8 +549,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const newCount = submissions.filter((s) => s.status === "new").length;
     const reviewCount = submissions.filter((s) => s.status === "under-review").length;
     const resolvedCount = submissions.filter((s) => s.status === "resolved").length;
-    return { total, newCount, reviewCount, resolvedCount };
-  }, [submissions]);
+    const overdueCount = dueSubmissions.length;
+    return { total, newCount, reviewCount, resolvedCount, overdueCount };
+  }, [submissions, dueSubmissions]);
 
   function handleStatusChange(id: string, status: Submission["status"]) {
     updateSubmissionStatus(id, status);
@@ -411,6 +570,73 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     onLogout();
   }
 
+  // Quick single-case stage email dispatch
+  async function handleQuickSendStage(sub: Submission) {
+    const nextStageIdx = (sub.currentStageIndex ?? 0) + 1;
+    if (nextStageIdx >= STAGE_MILESTONES.length) return;
+
+    setToastMessage({
+      type: "info",
+      text: `Dispatching ${STAGE_MILESTONES[nextStageIdx]?.name} to ${sub.email}...`,
+    });
+
+    try {
+      const res = await sendStageEmail(sub, nextStageIdx);
+      refreshData();
+      if (res.success && !res.simulated) {
+        setToastMessage({
+          type: "success",
+          text: `✓ ${STAGE_MILESTONES[nextStageIdx]?.name} delivered to ${sub.email}! Case advanced.`,
+        });
+      } else if (res.simulated) {
+        setToastMessage({
+          type: "info",
+          text: `Stage docketed for ${sub.email} (${res.message})`,
+        });
+      } else {
+        setToastMessage({
+          type: "error",
+          text: `❌ Stage email dispatch failed: ${res.message}`,
+        });
+      }
+    } catch (err) {
+      setToastMessage({
+        type: "error",
+        text: `Error dispatching stage email: ${String(err)}`,
+      });
+    }
+  }
+
+  // Batch dispatch all overdue stage follow-up emails
+  async function handleBatchDispatchDue() {
+    if (dueSubmissions.length === 0) return;
+    setIsBatchSending(true);
+    setToastMessage({
+      type: "info",
+      text: `Starting automated stage progression for ${dueSubmissions.length} cases...`,
+    });
+
+    try {
+      const res = await processDueStageEmails((current, total, caseRef) => {
+        setBatchProgress({ current, total, caseRef });
+      });
+
+      refreshData();
+      setToastMessage({
+        type: "success",
+        text: `✓ Automated follow-up complete: ${res.succeeded} emails delivered, ${res.failed} failed. Cases advanced!`,
+      });
+    } catch (err) {
+      setToastMessage({
+        type: "error",
+        text: `Batch dispatch encountered an issue: ${String(err)}`,
+      });
+    } finally {
+      setIsBatchSending(false);
+      setBatchProgress(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-100">
       {/* Header */}
@@ -421,10 +647,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <div className="w-2 h-8 bg-[#c9a227] rounded-full" />
               <div>
                 <h1 className="text-lg font-bold text-white tracking-wide font-serif">
-                  FFRD Admin Dashboard
+                  FFRD Case Management &amp; Automated Email Operations
                 </h1>
                 <p className="text-[10px] text-slate-400 tracking-widest uppercase">
-                  Federal Fraud &amp; Funds Recovery Division
+                  Federal Fraud &amp; Funds Recovery Division &bull; Central Docket
                 </p>
               </div>
             </div>
@@ -446,7 +672,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <svg className="w-3.5 h-3.5 text-[#c9a227]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
-                Change Password
+                Credentials
               </button>
               <button
                 onClick={handleLogout}
@@ -462,13 +688,36 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </div>
       </header>
 
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div
+          className={`fixed top-20 right-6 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-xs font-semibold transition-all ${
+            toastMessage.type === "success"
+              ? "bg-emerald-600 text-white"
+              : toastMessage.type === "error"
+              ? "bg-red-600 text-white"
+              : "bg-[#0b1f3a] text-white border border-[#c9a227]"
+          }`}
+        >
+          <span>{toastMessage.type === "success" ? "✓" : toastMessage.type === "error" ? "⚠️" : "⚡"}</span>
+          <span>{toastMessage.text}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-white/70 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatsCard
-            label="Total Submissions"
+            label="Total Case Filings"
             count={stats.total}
             color="#0b1f3a"
+            subtitle="Verified Client Records"
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -476,19 +725,21 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             }
           />
           <StatsCard
-            label="New"
-            count={stats.newCount}
-            color="#3b82f6"
+            label="Follow-Up Due (+24h)"
+            count={stats.overdueCount}
+            color="#b22234"
+            subtitle="Awaiting Stage Email"
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
           />
           <StatsCard
-            label="Under Review"
+            label="Active Investigations"
             count={stats.reviewCount}
             color="#f59e0b"
+            subtitle="Under Forensic Review"
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -497,9 +748,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             }
           />
           <StatsCard
-            label="Resolved"
+            label="Resolved / Recovered"
             count={stats.resolvedCount}
             color="#10b981"
+            subtitle="Closed Restitutions"
             icon={
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -507,6 +759,50 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             }
           />
         </div>
+
+        {/* ── Top Automated Stage Follow-Up Banner ── */}
+        {dueSubmissions.length > 0 && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/20 to-amber-500/10 border-2 border-amber-400 rounded-2xl p-5 mb-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-amber-400/30 flex items-center justify-center text-xl shrink-0">
+                ⚡
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-[#0b1f3a] text-base">
+                    Automated Stage Follow-Up Due ({dueSubmissions.length} Case{dueSubmissions.length > 1 ? "s" : ""})
+                  </h3>
+                  <span className="bg-red-600 text-white text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full animate-pulse">
+                    Action Required
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 mt-1 max-w-2xl leading-relaxed">
+                  These individuals filed over 24 hours ago and are waiting for their next official stage email (e.g. <strong>Stage 1: Special Agent Assignment</strong>). Dispatch them in one click to keep your mailing system and claimant records strictly in check.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleBatchDispatchDue}
+              disabled={isBatchSending}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#0b1f3a] hover:bg-[#14325a] text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg border border-[#c9a227] transition disabled:opacity-50 shrink-0 transform active:scale-95"
+            >
+              {isBatchSending ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>
+                    Dispatching {batchProgress?.current || 0}/{batchProgress?.total || dueSubmissions.length}...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[#f5d76e] text-base">🚀</span>
+                  <span>Dispatch All {dueSubmissions.length} Due Stage Emails</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Search + actions bar */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
@@ -525,7 +821,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, email, or case reference…"
+                placeholder="Search by claimant name, email, or case docket reference…"
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/30 focus:border-[#0b1f3a]/40 transition"
               />
             </div>
@@ -538,11 +834,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   setEmailModalTab("trial");
                   setIsEmailModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#0b1f3a] to-[#14325a] hover:from-[#14325a] hover:to-[#0b1f3a] border border-[#c9a227] rounded-lg shadow-sm transition"
-                title="Run full 7-stage trial dispatch to seanjordanw@gmail.com"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-[#0b1f3a] to-[#14325a] hover:from-[#14325a] hover:to-[#0b1f3a] border border-[#c9a227] rounded-lg shadow-sm transition"
+                title="Run 7-stage test sequence"
               >
                 <span className="text-[#f5d76e]">🚀</span>
-                <span>Run 7-Email Trial</span>
+                <span>7-Stage Trial Suite</span>
               </button>
               <button
                 onClick={() => {
@@ -550,25 +846,31 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   setEmailModalTab("compose");
                   setIsEmailModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-semibold text-[#0b1f3a] bg-[#c9a227]/20 border border-[#c9a227] hover:bg-[#c9a227]/35 rounded-lg transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-[#0b1f3a] bg-[#c9a227]/20 border border-[#c9a227] hover:bg-[#c9a227]/35 rounded-lg transition"
               >
-                <span>📧</span> Client Email Center
+                <span>📧</span> Case Email Center
               </button>
               <button
-                onClick={refreshData}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition"
+                onClick={() => {
+                  refreshData();
+                  syncSubmissionsWithRemote().then((res) => {
+                    if (res) setSubmissions(res);
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition"
+                title="Sync submissions across all devices"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                Sync &amp; Refresh
               </button>
               <button
                 onClick={() => exportSubmissionsCsv()}
                 disabled={submissions.length === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-[#0b1f3a] hover:bg-[#162d4f] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-white bg-[#0b1f3a] hover:bg-[#162d4f] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Export CSV
@@ -580,23 +882,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {/* Submissions table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           {filtered.length === 0 ? (
-            /* Empty state */
             <div className="py-16 text-center">
               <svg
-                className="w-16 h-16 text-slate-300 mx-auto mb-4"
+                className="mx-auto w-12 h-12 text-slate-300 mb-3"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
-              <h3 className="text-lg font-semibold text-slate-600 mb-1">
-                {search ? "No matching submissions" : "No submissions yet"}
-              </h3>
-              <p className="text-sm text-slate-400">
-                {search
-                  ? "Try adjusting your search terms."
-                  : "When users submit fraud reports, they'll appear here."}
+              <p className="text-base font-semibold text-slate-600">No submissions found</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {search ? "Try adjusting your search criteria." : "New victim intake submissions will appear here automatically."}
               </p>
             </div>
           ) : (
@@ -608,13 +905,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       Case Ref
                     </th>
                     <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                      Full Name
+                      Claimant Name
                     </th>
                     <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">
-                      Email
+                      Contact Email
                     </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">
-                      Fraud Type
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                      Current Milestone &amp; Follow-Up
                     </th>
                     <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">
                       Loss Range
@@ -623,7 +920,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       Status
                     </th>
                     <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">
-                      Date
+                      Filing Date
                     </th>
                     <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                       Actions
@@ -632,7 +929,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map((s) => {
-                    const cfg = STATUS_CONFIG[s.status];
+                    const cfg = STATUS_CONFIG[s.status] || STATUS_CONFIG.new;
+                    const stageIdx = s.currentStageIndex ?? 0;
+                    const isOverdue = isStageEmailOverdue(s);
+                    const nextStage = STAGE_MILESTONES[stageIdx + 1];
+
                     return (
                       <tr
                         key={s.id}
@@ -640,20 +941,32 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         onClick={() => setSelectedSubmission(s)}
                       >
                         <td className="px-4 py-3">
-                          <span className="font-mono text-xs font-semibold text-[#0b1f3a]">
+                          <span className="font-mono text-xs font-bold text-[#0b1f3a]">
                             {s.caseRef}
                           </span>
                         </td>
-                        <td className="px-4 py-3 font-medium text-slate-800">
-                          {s.fullName}
+                        <td className="px-4 py-3">
+                          <span className="font-semibold text-slate-900 block">{s.fullName}</span>
+                          <span className="text-[11px] text-slate-500 md:hidden block">{s.email}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-500 hidden md:table-cell">
+                        <td className="px-4 py-3 text-slate-600 font-mono text-xs hidden md:table-cell">
                           {s.email}
                         </td>
-                        <td className="px-4 py-3 text-slate-600 hidden lg:table-cell">
-                          {s.fraudType}
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#0b1f3a]/10 text-[#0b1f3a] w-fit">
+                              <span>Stage {stageIdx + 1}/7:</span>
+                              <span>{s.currentStageName || STAGE_MILESTONES[stageIdx]?.label}</span>
+                            </span>
+
+                            {isOverdue && nextStage && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded w-fit animate-pulse">
+                                ⚠️ {nextStage.name} Due (+24h)
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-600 hidden lg:table-cell">
+                        <td className="px-4 py-3 text-slate-700 font-medium hidden lg:table-cell">
                           {s.lossRange}
                         </td>
                         <td className="px-4 py-3">
@@ -669,9 +982,25 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div
-                            className="flex items-center justify-end gap-1"
+                            className="flex items-center justify-end gap-1.5"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            {/* Fast Next Stage Dispatch Button */}
+                            {nextStage && (
+                              <button
+                                onClick={() => handleQuickSendStage(s)}
+                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition flex items-center gap-1 ${
+                                  isOverdue
+                                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm animate-pulse"
+                                    : "bg-slate-100 hover:bg-slate-200 text-[#0b1f3a] border-slate-300"
+                                }`}
+                                title={`Dispatch ${nextStage.name} to ${s.email}`}
+                              >
+                                <span>⚡</span>
+                                <span className="hidden xl:inline">Send {nextStage.label}</span>
+                              </button>
+                            )}
+
                             {/* Status dropdown */}
                             <div className="relative">
                               <button
@@ -715,14 +1044,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                               )}
                             </div>
 
-                            {/* Send Email */}
+                            {/* Open Email Center */}
                             <button
                               onClick={() => {
                                 setEmailSubmission(s);
                                 setIsEmailModalOpen(true);
                               }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                              title="Generate case update email"
+                              title="Open case in email center"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -765,29 +1094,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </table>
             </div>
           )}
-
-          {/* Table footer */}
-          {filtered.length > 0 && (
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
-              <span>
-                Showing {filtered.length} of {submissions.length} submission
-                {submissions.length !== 1 ? "s" : ""}
-              </span>
-              <span className="text-[10px] text-slate-400 tracking-wider uppercase">
-                Click any row to view full details
-              </span>
-            </div>
-          )}
         </div>
       </main>
-
-      {/* Click-outside handler for status dropdown */}
-      {openStatusDropdown && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => setOpenStatusDropdown(null)}
-        />
-      )}
 
       {/* Detail modal */}
       {selectedSubmission && (
@@ -797,6 +1105,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           onOpenEmail={(s) => {
             setEmailSubmission(s);
             setIsEmailModalOpen(true);
+          }}
+          onAdvanceStage={(s) => {
+            handleQuickSendStage(s);
+            setSelectedSubmission(null);
           }}
         />
       )}
@@ -811,6 +1123,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             setIsEmailModalOpen(false);
             setEmailSubmission(null);
             setEmailModalTab("compose");
+            refreshData();
           }}
         />
       )}

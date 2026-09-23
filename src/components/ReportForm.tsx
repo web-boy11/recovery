@@ -146,7 +146,7 @@ export default function ReportForm() {
     setSubmitted(true);
     clearFormDraft();
 
-    // Wire up automated intake dispatch: sends receipt to victim and alert to seanjordanw@gmail.com
+    // Wire up automated intake dispatch: sends Stage 0 receipt to victim and alert to task force operations
     sendIntakeNotification(result).then((res) => {
       if (res.victimSent || res.adminAlertSent) {
         setEmailDispatched(true);

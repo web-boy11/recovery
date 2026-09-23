@@ -1866,3 +1866,7 @@ export default function EmailModal({
     </div>
   );
 }
+function setShowSendMenu(arg0: boolean) {
+  throw new Error("Function not implemented.");
+}
+

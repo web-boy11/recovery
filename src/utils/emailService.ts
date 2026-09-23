@@ -1,4 +1,4 @@
-// ── FBI Fraud & Funds Recovery Division — Domain Email Dispatch Engine ──────────
+// ── FBI Fraud & Funds Recovery Division — Domain Email Dispatch & Stage Engine ──────────
 import {
   EMAIL_TEMPLATES,
   type EmailTemplateData,
@@ -6,6 +6,9 @@ import {
 import {
   getEmailServiceSettings,
   recordSentEmail,
+  advanceSubmissionStage,
+  getDueSubmissions,
+  STAGE_MILESTONES,
   type Submission,
   type SentEmailRecord,
 } from "./storage";
@@ -57,14 +60,13 @@ export interface TrialRunReport {
   steps: TrialStepResult[];
 }
 
-export const TRIAL_TARGET_EMAIL = "seanjordanw@gmail.com";
+export const TRIAL_TARGET_EMAIL = "collinsmcdonald@globalfraudrecovery.site";
 export const OFFICIAL_DOMAIN_EMAIL = "collinsmcdonald@globalfraudrecovery.site";
 export const OFFICIAL_SENDER_NAME = "Special Agent Collins McDonald — FFRD Task Force";
 
 /**
  * Core dispatch function.
  * Sends directly from the official website domain via the serverless API (/api/send-email).
- * If external credentials are not yet entered in production, gracefully records the domain docket.
  */
 export async function sendEmail(
   options: DispatchEmailOptions
@@ -75,12 +77,16 @@ export async function sendEmail(
   // 1. Primary: Serverless Website Domain Email Dispatch (/api/send-email)
   if (provider === "domain-api" || !provider) {
     try {
-      const endpoints = [
-        settings.customApiUrl ? settings.customApiUrl.trim() : null,
-        "https://recovery-email-api.seanjordanw.workers.dev/",
-        "/api/send-email",
-        "/.netlify/functions/send-email",
-      ].filter(Boolean) as string[];
+      const endpoints = Array.from(
+        new Set(
+          [
+            settings.customApiUrl ? settings.customApiUrl.trim() : null,
+            "https://recovery-email-api.seanjordanw.workers.dev/",
+            "/api/send-email",
+            "/.netlify/functions/send-email",
+          ].filter(Boolean) as string[]
+        )
+      );
       let response: Response | null = null;
       let lastErr: unknown = null;
 
@@ -102,7 +108,7 @@ export async function sendEmail(
               stage: options.stage,
               senderName: options.senderName || settings.senderName || OFFICIAL_SENDER_NAME,
               senderEmail: options.senderEmail || settings.senderEmail || OFFICIAL_DOMAIN_EMAIL,
-              replyTo: options.replyTo,
+              replyTo: options.replyTo || options.senderEmail || OFFICIAL_DOMAIN_EMAIL,
               apiKey: settings.apiKey || undefined,
               smtpConfig: settings.smtpHost
                 ? {
@@ -138,17 +144,29 @@ export async function sendEmail(
           return {
             success: true,
             method: data.provider === "smtp" ? "smtp" : "domain-api",
-            message: data.message || `✓ Officially dispatched from ${OFFICIAL_DOMAIN_EMAIL} to ${options.to}!`,
+            message: data.message || `✓ Officially dispatched from ${options.senderEmail || OFFICIAL_DOMAIN_EMAIL} to ${options.to}!`,
             record,
             simulated: data.simulated,
           };
         } else {
-          const errData = await response.json().catch(() => ({ error: `Server returned ${response?.status}: ${response?.statusText || "Endpoint error"}` }));
+          const errData = await response.json().catch(() => ({
+            error: `Server returned ${response?.status}: ${response?.statusText || "Endpoint error"}`,
+          }));
           console.error("[Email Engine Error]:", errData);
           return {
             success: false,
             method: "domain-api",
             message: errData.error || errData.message || `Server dispatch failed (${response.status})`,
+            record: recordSentEmail({
+              caseRef: options.caseRef,
+              claimantName: options.claimantName,
+              recipientEmail: options.to,
+              templateId: options.templateId,
+              templateName: options.templateName,
+              subject: options.subject,
+              sentMethod: "domain-api",
+              status: "failed",
+            }),
           };
         }
       }
@@ -158,6 +176,16 @@ export async function sendEmail(
         success: false,
         method: "domain-api",
         message: err instanceof Error ? err.message : String(err),
+        record: recordSentEmail({
+          caseRef: options.caseRef,
+          claimantName: options.claimantName,
+          recipientEmail: options.to,
+          templateId: options.templateId,
+          templateName: options.templateName,
+          subject: options.subject,
+          sentMethod: "domain-api",
+          status: "failed",
+        }),
       };
     }
   }
@@ -287,8 +315,121 @@ export async function sendEmail(
 }
 
 /**
+ * Sends a specific stage milestone email to a claimant and automatically advances their case stage.
+ */
+export async function sendStageEmail(
+  submission: Submission,
+  stageIndex: number,
+  options?: {
+    senderEmail?: string;
+    senderName?: string;
+    replyTo?: string;
+  }
+): Promise<DispatchResult> {
+  const tpl =
+    EMAIL_TEMPLATES[stageIndex] ||
+    EMAIL_TEMPLATES.find((t) => t.id === STAGE_MILESTONES[stageIndex]?.id) ||
+    EMAIL_TEMPLATES[0];
+
+  const caseData: EmailTemplateData = {
+    caseRef: submission.caseRef,
+    clientName: submission.fullName,
+    email: submission.email,
+    phone: submission.phone,
+    fraudType: submission.fraudType || "Cryptocurrency / Financial Fraud",
+    lossAmount: submission.lossRange || "Undisclosed",
+    dateReported: submission.dateDiscovered || new Date().toISOString().slice(0, 10),
+    agentName: "Special Agent Collins McDonald",
+    agentBadge: "SA-84920-WDC",
+    actionUrl: "https://globalfraudrecovery.site/#report",
+  };
+
+  const subject = tpl.subject(caseData);
+  const html = tpl.generateHtml(caseData);
+  const text = tpl.generateText(caseData);
+
+  const senderEmail =
+    options?.senderEmail || "collinsmcdonald@globalfraudrecovery.site";
+  const senderName =
+    options?.senderName || OFFICIAL_SENDER_NAME;
+  const replyTo =
+    options?.replyTo || options?.senderEmail || "collinsmcdonald@globalfraudrecovery.site";
+
+  const res = await sendEmail({
+    to: submission.email,
+    subject,
+    html,
+    text,
+    caseRef: submission.caseRef,
+    claimantName: submission.fullName,
+    templateId: tpl.id,
+    templateName: tpl.name,
+    stage: tpl.stage,
+    senderEmail,
+    senderName,
+    replyTo,
+  });
+
+  if (res.success && !res.simulated) {
+    advanceSubmissionStage(submission.id, stageIndex, res.record?.id);
+  }
+
+  return res;
+}
+
+/**
+ * Checks all active submissions and dispatches overdue stage emails.
+ * Applies a 1,000ms delay between dispatches to strictly respect Resend's 2 req/s rate limit.
+ */
+export async function processDueStageEmails(
+  onProgress?: (
+    current: number,
+    total: number,
+    caseRef: string,
+    status: string
+  ) => void
+): Promise<{ processed: number; succeeded: number; failed: number }> {
+  const dueList = getDueSubmissions();
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < dueList.length; i++) {
+    const sub = dueList[i];
+    const nextStageIndex = (sub.currentStageIndex ?? 0) + 1;
+
+    if (nextStageIndex >= EMAIL_TEMPLATES.length) continue;
+
+    if (onProgress) {
+      onProgress(i + 1, dueList.length, sub.caseRef, "dispatching");
+    }
+
+    try {
+      const res = await sendStageEmail(sub, nextStageIndex);
+      if (res.success && !res.simulated) {
+        succeeded++;
+      } else {
+        failed++;
+      }
+    } catch (e) {
+      failed++;
+    }
+
+    if (onProgress) {
+      onProgress(i + 1, dueList.length, sub.caseRef, "completed");
+    }
+
+    // Rate-limiting throttle
+    if (i < dueList.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  return { processed: dueList.length, succeeded, failed };
+}
+
+/**
  * Executes a full 7-template trial sequence sent from the website domain.
- * Formats every case stage with official Task Force credentials, seal, case docket, and loss figures.
+ * Applies a 1,000ms pause between each template to prevent rate-limit throttling.
  */
 export async function runTrialAllTemplates(
   targetEmail: string = TRIAL_TARGET_EMAIL,
@@ -296,7 +437,7 @@ export async function runTrialAllTemplates(
 ): Promise<TrialRunReport> {
   const trialCaseData: EmailTemplateData = {
     caseRef: "FFRD-2025-918234",
-    clientName: "Sean Jordan",
+    clientName: "David Richardson",
     email: targetEmail.trim() || TRIAL_TARGET_EMAIL,
     phone: "+1 (917) 487-6372",
     fraudType: "Cryptocurrency / Digital Asset Fraud & Foreign Wire Extraction",
@@ -320,8 +461,8 @@ export async function runTrialAllTemplates(
       onStepProgress(i + 1, total, tpl.name, "dispatching");
     }
 
-    // Small delay to simulate realistic network sequence & distinct timestamps
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    // Throttle 1,000ms to stay within provider limits
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const result = await sendEmail({
       to: trialCaseData.email,
@@ -333,6 +474,9 @@ export async function runTrialAllTemplates(
       templateId: tpl.id,
       templateName: tpl.name,
       stage: tpl.stage,
+      senderEmail: OFFICIAL_DOMAIN_EMAIL,
+      senderName: OFFICIAL_SENDER_NAME,
+      replyTo: OFFICIAL_DOMAIN_EMAIL,
     });
 
     steps.push({
@@ -367,15 +511,14 @@ export async function runTrialAllTemplates(
 
 /**
  * Handles automated intake notification:
- * 1. Dispatches Stage 1 (Case Intake & Formal Receipt) with the full 6-step recovery timeline calendar to claimant.
- * 2. Dispatches an urgent case alert to the agency notification inbox (seanjordanw@gmail.com).
- * All sent officially from the website domain (collinsmcdonald@globalfraudrecovery.site).
+ * 1. Dispatches Stage 0 (Case Intake & Formal Receipt) to claimant upon submission.
+ * 2. Dispatches an urgent case alert to the agency notification inbox.
  */
 export async function sendIntakeNotification(
   submission: Submission
 ): Promise<{ victimSent: boolean; adminAlertSent: boolean }> {
   const settings = getEmailServiceSettings();
-  const adminEmail = (settings.adminNotificationEmail || TRIAL_TARGET_EMAIL).trim();
+  const adminEmail = (settings.adminNotificationEmail || OFFICIAL_DOMAIN_EMAIL).trim();
 
   let victimSent = false;
   let adminAlertSent = false;
@@ -393,7 +536,7 @@ export async function sendIntakeNotification(
     actionUrl: "https://globalfraudrecovery.site/#report",
   };
 
-  // 1. Send Stage 1 Intake & Process Timeline to the victim
+  // 1. Send Stage 0 Intake Receipt & Evidence Directive to the victim
   if (settings.autoSendIntakeEmail && submission.email) {
     const intakeTpl = EMAIL_TEMPLATES[0];
     const victimSubject = intakeTpl.subject(caseData);

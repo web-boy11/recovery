@@ -5,15 +5,8 @@
  *
  * Handles:
  *   1. /api/send-email  — Resend-powered transactional email dispatch
- *   2. Static asset serving via env.ASSETS with SPA fallback
- *
- * Features:
- *   - Structured JSON logging for Cloudflare dashboard
- *   - Request ID tracking via cf-ray header
- *   - Graceful domain-verification fallback
- *   - CORS with configurable origin allowlist
- *   - Security headers on all responses
- *   - Input validation and sanitization
+ *   2. /api/submissions — Case submission sync across devices
+ *   3. Static asset serving via env.ASSETS with SPA fallback
  */
 
 const ALLOWED_ORIGINS = [
@@ -32,9 +25,7 @@ const SECURITY_HEADERS = {
 
 function getCorsOrigin(request) {
   const origin = request.headers.get("Origin") || "";
-  // In production allow the matched origin; in dev allow all
   if (ALLOWED_ORIGINS.some((o) => origin.startsWith(o))) return origin;
-  // Fallback: allow all for maximum compatibility during deployment
   return "*";
 }
 
@@ -42,7 +33,7 @@ function corsHeaders(request) {
   return {
     "Access-Control-Allow-Origin": getCorsOrigin(request),
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+    "Access-Control-Allow-Methods": "POST, OPTIONS, GET, PATCH, DELETE",
     "Content-Type": "application/json",
     ...SECURITY_HEADERS,
   };
@@ -59,17 +50,70 @@ function isValidEmail(email) {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+let inMemorySubmissions = [];
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const requestId = request.headers.get("cf-ray") || crypto.randomUUID();
 
-    // ── 1. Route: /api/send-email & /.netlify/functions/send-email ──────────
+    // ── 1. Route: /api/submissions ────────────────────────────────────────
+    if (url.pathname === "/api/submissions" || url.pathname === "/submissions") {
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders(request) });
+      }
+
+      if (request.method === "GET") {
+        try {
+          if (env && env.SUBMISSIONS_KV) {
+            const raw = await env.SUBMISSIONS_KV.get("submissions");
+            const data = raw ? JSON.parse(raw) : [];
+            return jsonResponse(data, 200, request);
+          }
+          return jsonResponse(inMemorySubmissions, 200, request);
+        } catch (err) {
+          return jsonResponse({ error: err.message }, 500, request);
+        }
+      }
+
+      if (request.method === "POST") {
+        try {
+          const submission = await request.json();
+          if (!submission || !submission.caseRef) {
+            return jsonResponse({ error: "Missing required submission or caseRef." }, 400, request);
+          }
+
+          if (env && env.SUBMISSIONS_KV) {
+            const raw = await env.SUBMISSIONS_KV.get("submissions");
+            let list = raw ? JSON.parse(raw) : [];
+            const idx = list.findIndex((s) => s.caseRef === submission.caseRef);
+            if (idx >= 0) {
+              list[idx] = { ...list[idx], ...submission };
+            } else {
+              list.unshift(submission);
+            }
+            await env.SUBMISSIONS_KV.put("submissions", JSON.stringify(list));
+          } else {
+            const idx = inMemorySubmissions.findIndex((s) => s.caseRef === submission.caseRef);
+            if (idx >= 0) {
+              inMemorySubmissions[idx] = { ...inMemorySubmissions[idx], ...submission };
+            } else {
+              inMemorySubmissions.unshift(submission);
+            }
+          }
+
+          return jsonResponse({ success: true, caseRef: submission.caseRef }, 200, request);
+        } catch (err) {
+          return jsonResponse({ error: err.message }, 500, request);
+        }
+      }
+    }
+
+    // ── 2. Route: /api/send-email & /.netlify/functions/send-email ──────────
     if (
       url.pathname === "/api/send-email" ||
       url.pathname === "/.netlify/functions/send-email"
     ) {
-      // CORS Preflight
       if (request.method === "OPTIONS") {
         return new Response(null, {
           status: 204,
@@ -77,13 +121,12 @@ export default {
         });
       }
 
-      // Health check
       if (request.method === "GET") {
         return jsonResponse(
           {
             status: "operational",
             service: "Email Dispatch Engine",
-            version: "2.0.0",
+            version: "2.1.0",
             requestId,
             timestamp: new Date().toISOString(),
           },
@@ -104,7 +147,7 @@ export default {
         const body = await request.json();
         const { to, subject, html, text, caseRef, apiKey } = body;
 
-        // ── Input validation ──────────────────────────────────────────
+        // Input validation
         if (!to || !subject || (!html && !text)) {
           return jsonResponse(
             {
@@ -129,16 +172,20 @@ export default {
           );
         }
 
-        // ── Resolve credentials ───────────────────────────────────────
         const fromEmail =
-          (env && env.FROM_EMAIL) ||
           body.senderEmail ||
+          (env && env.FROM_EMAIL) ||
           "collinsmcdonald@globalfraudrecovery.site";
         const fromName =
-          (env && env.FROM_NAME) ||
           body.senderName ||
+          (env && env.FROM_NAME) ||
           "Special Agent Collins McDonald — FFRD Task Force";
         const formattedFrom = `"${fromName}" <${fromEmail}>`;
+        const replyTo =
+          body.replyTo ||
+          (fromEmail.includes("noreply")
+            ? "support@globalfraudrecovery.site"
+            : fromEmail);
 
         const defaultKey =
           typeof atob !== "undefined"
@@ -154,7 +201,7 @@ export default {
           return jsonResponse(
             {
               success: false,
-              error: "No Resend API key configured. Add RESEND_API_KEY in Cloudflare environment variables.",
+              error: "No Resend API key configured.",
               requestId,
             },
             400,
@@ -162,17 +209,16 @@ export default {
           );
         }
 
-        // ── Primary dispatch via Resend ───────────────────────────────
         const emailPayload = {
           from: formattedFrom,
           to: [to],
-          reply_to: fromEmail,
+          reply_to: replyTo,
           subject,
           html,
           text,
         };
 
-        let res = await fetch("https://api.resend.com/emails", {
+        const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${resendKey}`,
@@ -181,42 +227,9 @@ export default {
           body: JSON.stringify(emailPayload),
         });
 
-        let data = await res.json();
-
-        // ── Domain-verification fallback ──────────────────────────────
-        if (
-          !res.ok &&
-          data.message &&
-          (data.message.includes("not verified") ||
-            data.message.includes("validation_error"))
-        ) {
-          console.warn(
-            `[Email Worker] Domain not verified for ${fromEmail}. Using fallback domain.`,
-            { requestId }
-          );
-
-          const fallbackFrom = `"${fromName}" <investigations@danandshaytour.online>`;
-          res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${resendKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ...emailPayload,
-              from: fallbackFrom,
-            }),
-          });
-          data = await res.json();
-        }
+        const data = await res.json();
 
         if (res.ok) {
-          console.log(`[Email Worker] ✓ Delivered to ${to}`, {
-            messageId: data.id,
-            caseRef,
-            requestId,
-          });
-
           return jsonResponse(
             {
               success: true,
@@ -233,12 +246,6 @@ export default {
             request
           );
         } else {
-          console.error(`[Email Worker] ✗ Dispatch failed`, {
-            error: data.message,
-            to,
-            requestId,
-          });
-
           return jsonResponse(
             {
               success: false,
@@ -251,11 +258,6 @@ export default {
           );
         }
       } catch (err) {
-        console.error(`[Email Worker] Unhandled error`, {
-          error: err.message,
-          requestId,
-        });
-
         return jsonResponse(
           {
             success: false,
@@ -268,11 +270,10 @@ export default {
       }
     }
 
-    // ── 2. Static Assets & SPA Fallback ───────────────────────────────────
+    // ── 3. Static Assets & SPA Fallback ───────────────────────────────────
     try {
       let response = await env.ASSETS.fetch(request);
 
-      // SPA fallback: serve index.html for navigation requests that aren't files
       if (
         response.status === 404 &&
         request.method === "GET" &&
@@ -281,7 +282,6 @@ export default {
         response = await env.ASSETS.fetch(new URL("/", request.url));
       }
 
-      // Clone response to add security headers to static assets too
       const newHeaders = new Headers(response.headers);
       Object.entries(SECURITY_HEADERS).forEach(([k, v]) =>
         newHeaders.set(k, v)
