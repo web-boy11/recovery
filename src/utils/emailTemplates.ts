@@ -11,6 +11,7 @@ export interface EmailTemplateData {
   agentName?: string;
   agentBadge?: string;
   actionUrl?: string;
+  customNotes?: string;
 }
 
 export interface EmailTemplateMeta {
@@ -224,6 +225,18 @@ function wrapEmail(
           <tr>
             <td style="padding: 32px 32px 24px 32px; color: #1e293b; font-size: 14px; line-height: 1.65;">
               ${bodyHtml}
+              ${
+                data.customNotes && data.customNotes.trim()
+                  ? `
+                <div style="margin: 22px 0 10px 0; padding: 14px 18px; background-color: #fffbeb; border-left: 4px solid #c9a227; border-radius: 4px;">
+                  <div style="font-size: 11px; font-weight: bold; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">
+                    Investigative Directive &amp; Special Agent Remarks:
+                  </div>
+                  <div style="font-size: 13px; color: #78350f; line-height: 1.5; white-space: pre-wrap;">${data.customNotes.trim()}</div>
+                </div>
+              `
+                  : ""
+              }
             </td>
           </tr>
 

@@ -272,9 +272,10 @@ function DetailModal({
                 onClose();
                 onOpenEmail(s);
               }}
-              className="inline-flex items-center gap-1 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-lg border border-slate-300 transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-lg border border-amber-300 shadow-xs transition"
             >
-              ✉️ Open in Composer
+              <span>✏️</span>
+              <span>Edit Email Before Sending</span>
             </button>
           </div>
 
@@ -985,20 +986,33 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             className="flex items-center justify-end gap-1.5"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {/* Fast Next Stage Dispatch Button */}
+                            {/* Fast Next Stage Dispatch & Edit Controls */}
                             {nextStage && (
-                              <button
-                                onClick={() => handleQuickSendStage(s)}
-                                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition flex items-center gap-1 ${
-                                  isOverdue
-                                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm animate-pulse"
-                                    : "bg-slate-100 hover:bg-slate-200 text-[#0b1f3a] border-slate-300"
-                                }`}
-                                title={`Dispatch ${nextStage.name} to ${s.email}`}
-                              >
-                                <span>⚡</span>
-                                <span className="hidden xl:inline">Send {nextStage.label}</span>
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleQuickSendStage(s)}
+                                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition flex items-center gap-1 ${
+                                    isOverdue
+                                      ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm animate-pulse"
+                                      : "bg-slate-100 hover:bg-slate-200 text-[#0b1f3a] border-slate-300"
+                                  }`}
+                                  title={`Instant dispatch ${nextStage.name} to ${s.email}`}
+                                >
+                                  <span>⚡</span>
+                                  <span className="hidden xl:inline">Send {nextStage.label}</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEmailSubmission(s);
+                                    setIsEmailModalOpen(true);
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition flex items-center gap-1"
+                                  title={`Review and edit ${nextStage.name} before sending`}
+                                >
+                                  <span>✏️</span>
+                                  <span className="hidden xl:inline">Edit</span>
+                                </button>
+                              </div>
                             )}
 
                             {/* Status dropdown */}

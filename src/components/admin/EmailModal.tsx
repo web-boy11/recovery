@@ -39,13 +39,19 @@ export default function EmailModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
     EMAIL_TEMPLATES[0].id
   );
-  const [viewMode, setViewMode] = useState<"visual" | "html" | "text">("visual");
+  const [viewMode, setViewMode] = useState<"visual" | "html" | "text" | "split">("visual");
   const [activeTab, setActiveTab] = useState<"compose" | "trial" | "settings" | "history">(initialTab);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | "info";
     text: string;
   } | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
+
+  // Editable email state
+  const [editedSubject, setEditedSubject] = useState<string>("");
+  const [editedHtml, setEditedHtml] = useState<string>("");
+  const [editedText, setEditedText] = useState<string>("");
+  const [isCustomEdited, setIsCustomEdited] = useState<boolean>(false);
 
   // Track which submission is selected in the quick-selector
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>(
@@ -66,6 +72,7 @@ export default function EmailModal({
       initialSub?.dateDiscovered || new Date().toISOString().slice(0, 10),
     agentName: "Special Agent Collins McDonald",
     agentBadge: "SA-84920-WDC",
+    customNotes: "",
   });
 
   const [isDetailsCollapsed, setIsDetailsCollapsed] = useState<boolean>(false);
@@ -148,17 +155,50 @@ export default function EmailModal({
     );
   }, [selectedTemplateId]);
 
-  const subjectLine = useMemo(() => {
+  const defaultSubject = useMemo(() => {
     return currentTemplate.subject(formData);
   }, [currentTemplate, formData]);
 
-  const emailHtml = useMemo(() => {
+  const defaultHtml = useMemo(() => {
     return currentTemplate.generateHtml(formData);
   }, [currentTemplate, formData]);
 
-  const emailText = useMemo(() => {
+  const defaultText = useMemo(() => {
     return currentTemplate.generateText(formData);
   }, [currentTemplate, formData]);
+
+  // Synchronize edited fields whenever template changes or submission changes
+  useEffect(() => {
+    setEditedSubject(defaultSubject);
+    setEditedHtml(defaultHtml);
+    setEditedText(defaultText);
+    setIsCustomEdited(false);
+  }, [selectedTemplateId, selectedSubmissionId]);
+
+  // If user hasn't made manual custom edits to raw HTML or Subject, keep in sync with form data edits (e.g. claimant name, custom notes)
+  useEffect(() => {
+    if (!isCustomEdited) {
+      setEditedSubject(defaultSubject);
+      setEditedHtml(defaultHtml);
+      setEditedText(defaultText);
+    }
+  }, [defaultSubject, defaultHtml, defaultText, isCustomEdited]);
+
+  function handleResetToDefaults() {
+    setEditedSubject(defaultSubject);
+    setEditedHtml(defaultHtml);
+    setEditedText(defaultText);
+    setIsCustomEdited(false);
+    setFeedback({
+      type: "info",
+      text: "↺ Email content and subject reset to default template standards.",
+    });
+  }
+
+  // Active values used for preview and transmission
+  const subjectLine = editedSubject || defaultSubject;
+  const emailHtml = editedHtml || defaultHtml;
+  const emailText = editedText || defaultText;
 
   // Count history for current case
   const caseHistory = useMemo(() => {
@@ -900,6 +940,28 @@ export default function EmailModal({
                       className="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
                     />
                   </div>
+
+                  {/* Special Investigative Directives & Custom Remarks */}
+                  <div className="sm:col-span-2 md:col-span-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                        <span className="text-[#c9a227]">⚡</span>
+                        Special Investigative Directives &amp; Custom Agent Remarks (Optional)
+                      </label>
+                      <span className="text-[11px] font-normal text-slate-500">
+                        Inserts an official gold-accented directive notice into the email
+                      </span>
+                    </div>
+                    <textarea
+                      value={formData.customNotes || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, customNotes: e.target.value })
+                      }
+                      rows={2}
+                      placeholder="e.g. Please submit all foreign bank wire receipts and crypto wallet transaction hashes before Friday at 5:00 PM EST. Contact Agent Collins McDonald directly at ext. 492."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#0b1f3a] placeholder:text-slate-400"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -923,87 +985,267 @@ export default function EmailModal({
                 </select>
               </div>
 
-              {/* View Switcher */}
-              <div className="flex items-center bg-white border border-slate-300 rounded-lg p-0.5 text-xs self-end">
+              {/* View Switcher & Editor Mode Controls */}
+              <div className="flex flex-wrap items-center gap-2 self-end">
+                {isCustomEdited && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 font-semibold shadow-xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span>Custom Edits Active</span>
+                    <button
+                      type="button"
+                      onClick={handleResetToDefaults}
+                      className="ml-1 text-[11px] text-amber-700 hover:text-amber-950 underline font-normal"
+                      title="Reset email to standard template format"
+                    >
+                      ↺ Reset
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center bg-white border border-slate-300 rounded-lg p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("visual")}
+                    className={`px-3 py-1 rounded font-medium transition flex items-center gap-1 ${
+                      viewMode === "visual"
+                        ? "bg-[#0b1f3a] text-white shadow"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>👁️</span>
+                    <span>Visual Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("html")}
+                    className={`px-3 py-1 rounded font-medium transition flex items-center gap-1 ${
+                      viewMode === "html"
+                        ? "bg-[#0b1f3a] text-white shadow"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>✏️</span>
+                    <span>Edit HTML</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("text")}
+                    className={`px-3 py-1 rounded font-medium transition flex items-center gap-1 ${
+                      viewMode === "text"
+                        ? "bg-[#0b1f3a] text-white shadow"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>📝</span>
+                    <span>Edit Plain Text</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("split")}
+                    className={`px-3 py-1 rounded font-medium transition hidden lg:inline-flex items-center gap-1 ${
+                      viewMode === "split"
+                        ? "bg-[#0b1f3a] text-white shadow"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>⚡</span>
+                    <span>Split View</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Subject Banner - Fully Editable */}
+            <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
+              <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-bold text-slate-500 uppercase tracking-wider text-[11px]">
+                    To:
+                  </span>
+                  <span className="font-mono text-blue-900 font-semibold bg-blue-100/80 px-2 py-0.5 rounded text-xs truncate max-w-[200px]">
+                    {formData.email ? `${formData.clientName} <${formData.email}>` : "⚠️ (No email set)"}
+                  </span>
+                </div>
+
+                <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                  <label className="font-bold text-slate-700 uppercase tracking-wider text-[11px] shrink-0 flex items-center gap-1">
+                    <span>Subject:</span>
+                    <span className="text-[10px] text-blue-600 font-normal normal-case">(Editable)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editedSubject}
+                    onChange={(e) => {
+                      setEditedSubject(e.target.value);
+                      setIsCustomEdited(true);
+                    }}
+                    placeholder="Enter email subject line..."
+                    className="flex-1 px-2.5 py-1 text-xs font-serif font-semibold text-slate-900 bg-white border border-slate-300 rounded focus:border-[#0b1f3a] focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                  />
+                  {editedSubject !== defaultSubject && (
+                    <button
+                      type="button"
+                      onClick={() => setEditedSubject(defaultSubject)}
+                      className="px-2 py-1 text-[10px] text-slate-500 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 rounded shrink-0 font-medium"
+                      title="Reset subject line to template default"
+                    >
+                      ↺ Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 self-end md:self-auto">
                 <button
-                  onClick={() => setViewMode("visual")}
-                  className={`px-3 py-1 rounded font-medium transition ${
-                    viewMode === "visual"
-                      ? "bg-[#0b1f3a] text-white shadow"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  type="button"
+                  onClick={() => handleCopyText(subjectLine, "Subject Line")}
+                  className="text-blue-700 hover:text-blue-900 font-semibold px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 transition text-[11px]"
                 >
-                  Visual Preview
-                </button>
-                <button
-                  onClick={() => setViewMode("html")}
-                  className={`px-3 py-1 rounded font-medium transition ${
-                    viewMode === "html"
-                      ? "bg-[#0b1f3a] text-white shadow"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  HTML Code
-                </button>
-                <button
-                  onClick={() => setViewMode("text")}
-                  className={`px-3 py-1 rounded font-medium transition ${
-                    viewMode === "text"
-                      ? "bg-[#0b1f3a] text-white shadow"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Plain Text
+                  Copy Subject
                 </button>
               </div>
             </div>
 
-            {/* Subject Banner */}
-            <div className="px-5 py-2 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center justify-between gap-3 text-xs">
-              <div className="truncate flex items-center gap-2">
-                <span className="font-bold text-slate-500 uppercase tracking-wider shrink-0">
-                  To:
-                </span>
-                <span className="font-mono text-blue-800 font-semibold bg-blue-100/60 px-2 py-0.5 rounded truncate">
-                  {formData.email ? `${formData.clientName} <${formData.email}>` : "⚠️ (Please enter email above)"}
-                </span>
-                <span className="text-slate-300">|</span>
-                <span className="font-bold text-slate-500 uppercase tracking-wider shrink-0">
-                  Subject:
-                </span>
-                <span className="font-serif text-slate-900 font-semibold truncate">
-                  {subjectLine}
-                </span>
-              </div>
-              <button
-                onClick={() => handleCopyText(subjectLine, "Subject Line")}
-                className="shrink-0 text-blue-700 hover:text-blue-900 font-semibold px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 transition"
-              >
-                Copy Subject
-              </button>
-            </div>
-
-            {/* Content View Area */}
+            {/* Content View & Editing Area */}
             <div className="flex-1 overflow-hidden bg-slate-200/70 p-2 sm:p-4">
               {viewMode === "visual" && (
-                <div className="w-full h-full bg-white rounded-xl shadow-inner overflow-hidden border border-slate-300">
-                  <iframe
-                    title="Email Visual Preview"
-                    srcDoc={emailHtml}
-                    className="w-full h-full border-none"
-                  />
+                <div className="w-full h-full flex flex-col bg-white rounded-xl shadow-inner overflow-hidden border border-slate-300">
+                  <div className="px-4 py-2 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">
+                      Live Preview &bull; {currentTemplate.name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 hidden sm:inline">
+                        Want to modify wording?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode("html")}
+                        className="px-2 py-0.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded text-[11px] font-semibold transition"
+                      >
+                        ✏️ Edit HTML Code
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <iframe
+                      title="Email Visual Preview"
+                      srcDoc={emailHtml}
+                      className="w-full h-full border-none"
+                    />
+                  </div>
                 </div>
               )}
 
               {viewMode === "html" && (
-                <div className="w-full h-full bg-slate-900 rounded-xl p-4 overflow-auto font-mono text-xs text-emerald-400 border border-slate-700">
-                  <pre className="whitespace-pre-wrap">{emailHtml}</pre>
+                <div className="w-full h-full flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-md">
+                  <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400 font-mono font-bold">&lt;/&gt; HTML Source Editor</span>
+                      <span className="text-[11px] text-slate-500 hidden sm:inline">
+                        (Directly edit HTML content — updates preview and dispatch)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      {isCustomEdited && (
+                        <button
+                          type="button"
+                          onClick={handleResetToDefaults}
+                          className="text-amber-400 hover:text-amber-300 text-[11px] font-semibold flex items-center gap-1"
+                        >
+                          ↺ Reset to Template
+                        </button>
+                      )}
+                      <span className="text-[11px] font-mono text-slate-500">
+                        {emailHtml.length} chars
+                      </span>
+                    </div>
+                  </div>
+                  <textarea
+                    value={editedHtml}
+                    onChange={(e) => {
+                      setEditedHtml(e.target.value);
+                      setIsCustomEdited(true);
+                    }}
+                    className="flex-1 w-full p-4 bg-slate-900 font-mono text-xs text-emerald-300 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    spellCheck={false}
+                    placeholder="Enter or edit HTML markup..."
+                  />
                 </div>
               )}
 
               {viewMode === "text" && (
-                <div className="w-full h-full bg-white rounded-xl p-5 overflow-auto font-mono text-xs text-slate-800 border border-slate-300 shadow-inner">
-                  <pre className="whitespace-pre-wrap">{emailText}</pre>
+                <div className="w-full h-full flex flex-col bg-white rounded-xl overflow-hidden border border-slate-300 shadow-md">
+                  <div className="px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[#0b1f3a]">📝 Plain Text Body Editor</span>
+                      <span className="text-[11px] text-slate-500 hidden sm:inline">
+                        (Plain text fallback version)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      {isCustomEdited && (
+                        <button
+                          type="button"
+                          onClick={handleResetToDefaults}
+                          className="text-amber-700 hover:text-amber-900 text-[11px] font-semibold flex items-center gap-1"
+                        >
+                          ↺ Reset to Template
+                        </button>
+                      )}
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {emailText.length} chars
+                      </span>
+                    </div>
+                  </div>
+                  <textarea
+                    value={editedText}
+                    onChange={(e) => {
+                      setEditedText(e.target.value);
+                      setIsCustomEdited(true);
+                    }}
+                    className="flex-1 w-full p-4 bg-white font-mono text-xs text-slate-900 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-[#0b1f3a]"
+                    placeholder="Enter or edit plain text body..."
+                  />
+                </div>
+              )}
+
+              {viewMode === "split" && (
+                <div className="w-full h-full grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* Left Column: HTML Code Editor */}
+                  <div className="flex flex-col bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-md">
+                    <div className="px-3 py-1.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                      <span className="text-emerald-400 font-mono font-bold">&lt;/&gt; HTML Editor</span>
+                      <span className="font-mono text-slate-500">{emailHtml.length} chars</span>
+                    </div>
+                    <textarea
+                      value={editedHtml}
+                      onChange={(e) => {
+                        setEditedHtml(e.target.value);
+                        setIsCustomEdited(true);
+                      }}
+                      className="flex-1 w-full p-3 bg-slate-900 font-mono text-xs text-emerald-300 leading-relaxed resize-none focus:outline-none"
+                      spellCheck={false}
+                    />
+                  </div>
+
+                  {/* Right Column: Live Visual Preview */}
+                  <div className="flex flex-col bg-white rounded-xl overflow-hidden border border-slate-300 shadow-md">
+                    <div className="px-3 py-1.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
+                      <span className="font-bold text-[#0b1f3a]">👁️ Live Visual Preview</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Live Sync
+                      </span>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <iframe
+                        title="Live Sync Preview"
+                        srcDoc={emailHtml}
+                        className="w-full h-full border-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
